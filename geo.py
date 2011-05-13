@@ -15,7 +15,7 @@ from numpy.linalg import solve, norm
 from numpy.random import rand
 
 #from itertools import islice
-atlas = 'cross10x10onblack.bmp'
+atlas = 'u10x10onblack.bmp'
 Confinement = 0
 q = 1.6e-19
 hbar = 1.0545e-34/q                         #eV.s
@@ -31,7 +31,11 @@ lambdaf = 10
 def read_geometry(atlas):
     Img = Image.open(atlas)
     Arr = numpy.asarray(Img) 
-    Contact = numpy.transpose(numpy.where(Arr == 178))
+    Contact = []
+    Contact.append(numpy.array(numpy.where(Arr == 149)))
+    Contact.append(numpy.array(numpy.where(Arr == 179)))
+    Contact.append(numpy.array(numpy.where(Arr == 209)))
+    Contact.append(numpy.array(numpy.where(Arr == 239)))
     Conductor = numpy.transpose(numpy.where(Arr > 0))
     return Contact,Conductor
 
@@ -78,8 +82,8 @@ def build_HD(Nodes,Confinement,t):
         else: pass
         if Nodes[item][2] == None: continue
         HD[Nodes[item][0],Nodes[item][2]] = -t  
-    HD = HD + HD.conjugate().T
-    #    HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil might be faster
+    #HD = HD + HD.conjugate().T
+    HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
     return HD
 
 def build_EF(lambdaf,t,Nodes):
@@ -90,14 +94,16 @@ def build_SIGMA(Nodes,Cont):
     SIGMA = lil_matrix((len(Nodes),len(Nodes)),dtype=numpy.complex128)
     
     return SIGMA
-    
+t=time.time()   
 Cont,Cond = read_geometry(atlas)
 Nodes = compose_geo(Cond)
 HD = build_HD(compose_geo(read_geometry(atlas)[1]),0,t)
 EF = build_EF(lambdaf,t,Nodes)
+S = build_SIGMA(Nodes,Cont)
+print time.time()-t
 plt.imshow(numpy.asarray(HD.todense()).real)
 plt.show()
-#t=time.time()
+
 #Nodes = compose_geo(Cond)
 #print "The Process took", time.time()-t, "seconds"
 #Nodes2 = compose_geo2(Cond)
