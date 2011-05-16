@@ -4,15 +4,14 @@ Import of geometry to build Hamiltonian
 
 The X-axis is the row Y-Axis the column, X=Down; Y=Right
 """
-import numpy
+import scipy
 from PIL import Image
 import matplotlib.pyplot as plt
 import time
 from itertools import tee,izip_longest
 from scipy.sparse import lil_matrix,eye
-from scipy.sparse.linalg import spsolve
-from numpy.linalg import solve, norm
-from numpy.random import rand
+#from scipy.sparse.linalg import spsolve
+#from scipy.linalg import solve, norm
 
 #from itertools import islice
 def neighbour(iterable):
@@ -28,7 +27,7 @@ def neighbour(iterable):
 class Parameters:
     """Contains all nedded physical constants and parameters"""
 
-    atlas = 'cross10x10onblack.bmp'
+    atlas = 'vert_bar10x10onblack.bmp'
     Confinement = 0
     q = 1.6e-19
     hbar = 1.0545e-34/q                         #eV.s
@@ -43,20 +42,19 @@ class Parameters:
 
 
 class Device:
-    """Contains all methods relating to the device in particulr and
+    """Contains all methods relating to the device in particular and
     implicit like the defining geometry and the building of the
     Hamiltonian HD"""
 
-
-    def read_geometry(self, atlas):
+    def read_geometry(self, atlas=Parameters.atlas):
         Img = Image.open(atlas)
-        Arr = numpy.asarray(Img) 
-        self.Contact = []
-        self.Contact.append(numpy.array(numpy.where(Arr == 149)))
-        self.Contact.append(numpy.array(numpy.where(Arr == 179)))
-        self.Contact.append(numpy.array(numpy.where(Arr == 209)))
-        self.Contact.append(numpy.array(numpy.where(Arr == 239)))
-        self.Conductor = numpy.transpose(numpy.where(Arr > 0))
+        Arr = scipy.asarray(Img) 
+        Contact = []
+        Contact.append(scipy.array(scipy.where(Arr == 149)))
+        Contact.append(scipy.array(scipy.where(Arr == 179)))
+        Contact.append(scipy.array(scipy.where(Arr == 209)))
+        Contact.append(scipy.array(scipy.where(Arr == 239)))
+        Conductor = scipy.transpose(scipy.where(Arr > 0))
         return Contact,Conductor
 
      
@@ -65,7 +63,7 @@ class Device:
         b.next()
         return izip_longest(a,b)
         
-    def compose_geo(self, Cond):
+    def compose_geo(self, Cond=read_geometry(Parameters.atlas)[1]):
         Nodes = {}
         Count = 0
         for item,next_item in self.pairwise(Cond):
@@ -85,11 +83,11 @@ class Device:
         return Nodes
      
     def build_HD(self, Nodes, Potential=Parameters.Confinement,t=Parameters.t):
-        HD = lil_matrix((len(Nodes),len(Nodes)),dtype=numpy.complex128)   
+        HD = lil_matrix((len(Nodes),len(Nodes)),dtype=scipy.complex128)   
         HD.setdiag([Potential+4*t]*len(Nodes))   
         for item in Nodes:
             if Nodes[item][1] != None:
-                HD[Nodes[item][0],Nodes[item][1]] = -numpy.exp(1j*Nodes[item][0])*t
+                HD[Nodes[item][0],Nodes[item][1]] = -scipy.exp(1j*Nodes[item][0])*t
             else: pass
             if Nodes[item][2] == None: continue
             HD[Nodes[item][0],Nodes[item][2]] = -t  
@@ -97,8 +95,14 @@ class Device:
         HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
         return HD
 
+    def HD(self):
+        """docstring for HD"""
+        a, b = self.read_geometry()
+        HD = self.build_HD(self.compose_geo(b))
+        return HD
+
 def build_EF(Nodes, lambdaf=Parameters.lambdaf , t=Parameters.t):
-    EF = 2*t*(numpy.cos(numpy.pi/lambdaf))*eye(len(Nodes),len(Nodes),dtype=numpy.complex128, format='lil')
+    EF = 2*t*(scipy.cos(scipy.pi/lambdaf))*eye(len(Nodes),len(Nodes),dtype=scipy.complex128, format='lil')
     return EF
 
 class Contact:
@@ -106,31 +110,36 @@ class Contact:
     effects of Contacts via the self-energy"""
 
     def build_SIGMA(self, Nodes, contact):
-        SIGMA = lil_matrix((len(Nodes), len(Nodes)), dtype=numpy.complex128)
+        """Build the self-energy matrix SIGMA by determining the nodes
+        adjacent to a Contact and inserting the greensfunction times t**2"""
+        SIGMA = lil_matrix((len(Nodes), len(Nodes)), dtype=scipy.complex128)
         for ind_contact in contact:
             for contact_node in range(ind_contact.shape[1]):
-              SIGMA[Nodes[tuple(ind_contact.T[contact_node])][0],
-                    Nodes[tuple(ind_contact.T[contact_node])][0]] = 22
+                index = Nodes[tuple(ind_contact.T[contact_node])][0]
+                SIGMA[index, index] = Parameters.t * self.greensfunction_contact(ind_contact, contact_node)
         return SIGMA
 
-    def transverse_mode(self, contact):
+    def greensfunction_contact(self, ind_contact, contact_node):
         """calculates the value of the transverse mode's square at the point
         of the contact_node, essentially sin(pi)sin(pi) multiplied with
         appropriate amplitude and constats """
-        pass
+        Length = ind_contact.shape[1]*Parameters.a
+        Amplitude = scipy.sqrt(1/Length)
+        Phase = scipy.exp(1j*scipy.pi/Length*Parameters.a)
+        xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length) 
+        greensfunction = (xi**2) * Phase
+        return greensfunction
 
 timeittook=time.time()   
-#Cont,Cond = read_geometry(atlas)
-#Nodes = compose_geo(Cond)
-#HD = build_HD(compose_geo(read_geometry(atlas)[1]),0,t)
-#EF = build_EF(lambdaf,t,Nodes)
-#S = build_SIGMA(Nodes,Cont)
-print time.time()-timeittook
-#plt.imshow(numpy.asarray(HD.todense()).real)
+d = Device()
+c = Contact()
+cont, cond = d.read_geometry()
+nodes = d.compose_geo()
+s = c.build_SIGMA(nodes, cont)
+#plt.imshow(scipy.asarray(HD.todense()).real)
 #plt.show()
 
-#Nodes = compose_geo(Cond)
-#print "The Process took", time.time()-t, "seconds"
+print "The Process took", time.time()-timeittook, "seconds"
 #Nodes2 = compose_geo2(Cond)
 #def main():
 #    Cont,Cond = read_geometry(atlas)            
