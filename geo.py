@@ -39,6 +39,7 @@ class Parameters:
     mu = 0.25                                    #electro-chemical potential in eV
     kT = 0.0025                                  #Temperature * k_boltzmann in eV, 0.0025ev~30K
     lambdaf = 10
+    BField = 0
 
 
 class Device:
@@ -57,12 +58,12 @@ class Device:
         Conductor = scipy.transpose(scipy.where(Arr > 0))
         return Contact,Conductor
 
-     
+
     def pairwise(self, seq):
         a,b = tee(seq)
         b.next()
         return izip_longest(a,b)
-        
+
     def compose_geo(self, Cond=read_geometry(Parameters.atlas)[1]):
         Nodes = {}
         Count = 0
@@ -81,16 +82,16 @@ class Device:
                     pass
             Count +=1 
         return Nodes
-     
-    def build_HD(self, Nodes, Potential=Parameters.Confinement,t=Parameters.t):
-        HD = lil_matrix((len(Nodes),len(Nodes)),dtype=scipy.complex128)   
-        HD.setdiag([Potential+4*t]*len(Nodes))   
+
+    def build_HD(self, Nodes, Potential=Parameters.Confinement,t=Parameters.t,BField=Parameters.BField):
+        HD = lil_matrix((len(Nodes),len(Nodes)),dtype=scipy.complex128)
+        HD.setdiag([Potential+4*t]*len(Nodes))
         for item in Nodes:
             if Nodes[item][1] != None:
-                HD[Nodes[item][0],Nodes[item][1]] = -scipy.exp(1j*Nodes[item][0])*t
+                HD[Nodes[item][0],Nodes[item][1]] = -scipy.exp(1j*BField*Nodes[item][0])*t
             else: pass
             if Nodes[item][2] == None: continue
-            HD[Nodes[item][0],Nodes[item][2]] = -t  
+            HD[Nodes[item][0],Nodes[item][2]] = -t
         #HD = HD + HD.conjugate().T
         HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
         return HD
@@ -130,7 +131,7 @@ class Contact:
         greensfunction = (xi**2) * Phase
         return greensfunction
 
-timeittook=time.time()   
+timeittook=time.time()
 d = Device()
 c = Contact()
 cont, cond = d.read_geometry()
