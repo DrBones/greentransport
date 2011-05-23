@@ -15,20 +15,25 @@ from scipy.sparse import lil_matrix,eye
 #from scipy.linalg import solve, norm
 
 #from itertools import islice
-def neighbour(iterable):
+def neighbour_zero(iterable):
     iterator = iter(iterable)
-    prev = None
+    prev = 0
     item = iterator.next()
     for next in iterator:
         yield (prev,item,next)
         prev = item
         item = next
-    yield (prev,item,None)
+    #yield (prev,item,0)
+
+def pairwise(seq):
+    a,b = tee(seq)
+    b.next()
+    return izip_longest(a,b)
 
 class Parameters:
     """Contains all nedded physical constants and parameters"""
 
-    atlas = 'cross10x10onblack.bmp'
+    atlas = 'dot10x10onblack.bmp'
     Confinement = 0
     q = 1.6e-19
     hbar = 1.0545e-34/q                         #eV.s
@@ -60,15 +65,11 @@ class Device:
         return Contact,Conductor
 
 
-    def pairwise(self, seq):
-        a,b = tee(seq)
-        b.next()
-        return izip_longest(a,b)
 
     def compose_geo(self, Cond=read_geometry(Parameters.atlas)[1]):
         Nodes = {}
         Count = 0
-        for item,next_item in self.pairwise(Cond):
+        for item,next_item in pairwise(Cond):
             try:
                 if item[1] == next_item[1]-1:
                     Nodes[tuple(item)] = [Count,Count+1,None]
@@ -132,7 +133,7 @@ class Contact:
         greensfunction = (xi**2) * Phase
         return greensfunction
 
-def blocks(cond):
+def blocks(cond, A):
     block_size = 1
     block_sizes = []
     for i in range(len(cond)):
@@ -143,26 +144,36 @@ def blocks(cond):
             block_size = 1
     block_sizes.append(block_size)
     del block_sizes[0]
-    return block_sizes
+    Aview = {}
+    current_start = 0
+    row_index = 0
+    column_index = 0
+    Aview[row_index, column_index] = A[0:block_sizes[0],0:block_sizes[0]]
+    for i,current_block, next_block in neighbour_zero(block_sizes):
+        next_start = current_start + current_block
+        next_end = current_start + current_block +next_block
+        Aview[row_index+1, column_index+1] = A[next_start:next_end,next_start:next_end]
+        Aview[row_index, column_index+1] = A[current_start:next_start, next_start:next_end]
+        Aview[row_index+1, column_index] = A[next_start:next_end, current_start:next_start]
+        current_start +=current_block
+        row_index +=1
+        column_index +=1
+    return block_sizes, Aview
 
-def RGM(blocks, HD):
-    gl = [HD[0:blocks[0],0:blocks[0]].todense().I]
-    begin_slice = blocks[0]
-    iterator = blocks.__iter__()
-    prev_block_size = iterator.next()
+def RGM(blocks, Aview):
+    gl = [Aview[0,0].todense().I]
+    iterator = range(1,len(blocks)).__iter__()
     prev_greensfunction = gl[0]
-    for block_size in iterator:
-        print begin_slice
-        prev_greensfunction = (HD[begin_slice:begin_slice + block_size,
-                                  begin_slice:begin_slice + block_size].todense() -
-                               HD[begin_slice:begin_slice + block_size,
-                                  begin_slice - prev_block_size:begin_slice].todense() *
-                               prev_greensfunction *
-                               HD[begin_slice - prev_block_size:begin_slice,
-                                  begin_slice:begin_slice + block_size].todense()).I
+    for i in iterator:
+        prev_greensfunction = (Aview[i,i]-Aview[i, i-1] * prev_greensfunction * Aview[i-1,i]).I
         gl.append(prev_greensfunction)
-        begin_slice =begin_slice + block_size
-        prev_block_size = block_size
+    GR = {}
+    GR[len(blocks),len(blocks)] = gl[-1]
+    rev_iterator = reversed(range(1,len(blocks)))
+    for i in rev_iterator:
+        print i
+        GRlow = -GR[i,i] * Aview[i,i-1] * gl[i-1]
+        GRup = -gl[i-1] * Aview[i-1,i] * 
     return gl
 
 timeittook=time.time()
@@ -172,6 +183,8 @@ c = Contact()
 cont, cond = d.read_geometry()
 nodes = d.compose_geo()
 s = c.build_SIGMA(nodes, cont)
+A = d.HD()-s
+b, Aview = blocks(cond, A)
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #plt.show()
 
