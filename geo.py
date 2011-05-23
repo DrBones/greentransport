@@ -15,6 +15,8 @@ from scipy.sparse import lil_matrix,eye
 #from scipy.linalg import solve, norm
 
 #from itertools import islice
+scipy.set_printoptions(precision=3,suppress=True)
+
 def neighbour_zero(iterable):
     iterator = iter(iterable)
     prev = 0
@@ -129,7 +131,7 @@ class Contact:
         Length = ind_contact.shape[1]*Parameters.a
         Amplitude = scipy.sqrt(1/Length)
         Phase = scipy.exp(1j*scipy.pi/Length*Parameters.a)
-        xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length) 
+        xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length)
         greensfunction = (xi**2) * Phase
         return greensfunction
 
@@ -160,7 +162,7 @@ def blocks(cond, A):
         column_index +=1
     return block_sizes, Aview
 
-def RGM(blocks, Aview):
+def RRGM(blocks, Aview):
     gl = [Aview[0,0].todense().I]
     iterator = range(1,len(blocks)).__iter__()
     prev_greensfunction = gl[0]
@@ -168,14 +170,17 @@ def RGM(blocks, Aview):
         prev_greensfunction = (Aview[i,i]-Aview[i, i-1] * prev_greensfunction * Aview[i-1,i]).I
         gl.append(prev_greensfunction)
     GR = {}
-    GR[len(blocks),len(blocks)] = gl[-1]
+    GR[len(blocks)-1,len(blocks)-1] = gl[-1]
     rev_iterator = reversed(range(1,len(blocks)))
     for i in rev_iterator:
         print i
-        GRlow = -GR[i,i] * Aview[i,i-1] * gl[i-1]
-        GRup = -gl[i-1] * Aview[i-1,i] * 
-    return gl
+        GR[i, i-1] = -GR[i,i] * Aview[i,i-1] * gl[i-1]
+        GR[i-1, i] = -gl[i-1] * Aview[i-1,i] * GR[i,i]
+        GR[i-1, i-1] = gl[i-1]-gl[i-1] * Aview[i-1,i] * GR[i, i-1]
+    return gl, GR
 
+def LRGM(blocks, Aview):
+   pass
 timeittook=time.time()
 d = Device()
 c = Contact()
@@ -183,7 +188,7 @@ c = Contact()
 cont, cond = d.read_geometry()
 nodes = d.compose_geo()
 s = c.build_SIGMA(nodes, cont)
-A = d.HD()-s
+A = build_EF(nodes) - d.HD() - s
 b, Aview = blocks(cond, A)
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #plt.show()
