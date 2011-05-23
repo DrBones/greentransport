@@ -6,10 +6,11 @@ The X-axis is the row Y-Axis the column, X=Down; Y=Right
 """
 import scipy
 from PIL import Image
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 from itertools import tee,izip_longest
 from scipy.sparse import lil_matrix,eye
+#from scipy.sparse.linalg import splu
 #from scipy.sparse.linalg import spsolve
 #from scipy.linalg import solve, norm
 
@@ -27,7 +28,7 @@ def neighbour(iterable):
 class Parameters:
     """Contains all nedded physical constants and parameters"""
 
-    atlas = 'vert_bar10x10onblack.bmp'
+    atlas = 'cross10x10onblack.bmp'
     Confinement = 0
     q = 1.6e-19
     hbar = 1.0545e-34/q                         #eV.s
@@ -49,7 +50,7 @@ class Device:
 
     def read_geometry(self, atlas=Parameters.atlas):
         Img = Image.open(atlas)
-        Arr = scipy.asarray(Img) 
+        Arr = scipy.asarray(Img)
         Contact = []
         Contact.append(scipy.array(scipy.where(Arr == 149)))
         Contact.append(scipy.array(scipy.where(Arr == 179)))
@@ -74,13 +75,13 @@ class Device:
                 else:
                     Nodes[tuple(item)] = [Count,None,None]
             except TypeError:
-                Nodes[tuple(item)] = [Count,None,None]                
+                Nodes[tuple(item)] = [Count,None,None]
             if item[0]>1:
                 try:
                     Nodes[tuple(item - [1,0])][2] = Count
                 except KeyError:
                     pass
-            Count +=1 
+            Count +=1
         return Nodes
 
     def build_HD(self, Nodes, Potential=Parameters.Confinement,t=Parameters.t,BField=Parameters.BField):
@@ -131,9 +132,43 @@ class Contact:
         greensfunction = (xi**2) * Phase
         return greensfunction
 
+def blocks(cond):
+    block_size = 1
+    block_sizes = []
+    for i in range(len(cond)):
+        if cond[i][0] == cond[i-1][0]:
+            block_size +=1
+        else:
+            block_sizes.append(block_size)
+            block_size = 1
+    block_sizes.append(block_size)
+    del block_sizes[0]
+    return block_sizes
+
+def RGM(blocks, HD):
+    gl = [HD[0:blocks[0],0:blocks[0]].todense().I]
+    begin_slice = blocks[0]
+    iterator = blocks.__iter__()
+    prev_block_size = iterator.next()
+    prev_greensfunction = gl[0]
+    for block_size in iterator:
+        print begin_slice
+        prev_greensfunction = (HD[begin_slice:begin_slice + block_size,
+                                  begin_slice:begin_slice + block_size].todense() -
+                               HD[begin_slice:begin_slice + block_size,
+                                  begin_slice - prev_block_size:begin_slice].todense() *
+                               prev_greensfunction *
+                               HD[begin_slice - prev_block_size:begin_slice,
+                                  begin_slice:begin_slice + block_size].todense()).I
+        gl.append(prev_greensfunction)
+        begin_slice =begin_slice + block_size
+        prev_block_size = block_size
+    return gl
+
 timeittook=time.time()
 d = Device()
 c = Contact()
+
 cont, cond = d.read_geometry()
 nodes = d.compose_geo()
 s = c.build_SIGMA(nodes, cont)
