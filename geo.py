@@ -35,7 +35,7 @@ def pairwise(seq):
 class Parameters:
     """Contains all nedded physical constants and parameters"""
 
-    atlas = 'dot10x10onblack.bmp'
+    atlas = 'largedot10x10onblack.bmp'
     Confinement = 0
     q = 1.6e-19
     hbar = 1.0545e-34/q                         #eV.s
@@ -48,7 +48,7 @@ class Parameters:
     kT = 0.0025                                  #Temperature * k_boltzmann in eV, 0.0025ev~30K
     lambdaf = 10
     BField = 0
-
+    Egrid = scipy.arange(-0.1,0.4,0.005)
 
 class Device:
     """Contains all methods relating to the device in particular and
@@ -56,15 +56,16 @@ class Device:
     Hamiltonian HD"""
 
     def read_geometry(self, atlas=Parameters.atlas):
-        Img = Image.open(atlas)
-        Arr = scipy.asarray(Img)
-        Contact = []
-        Contact.append(scipy.array(scipy.where(Arr == 149)))
-        Contact.append(scipy.array(scipy.where(Arr == 179)))
-        Contact.append(scipy.array(scipy.where(Arr == 209)))
-        Contact.append(scipy.array(scipy.where(Arr == 239)))
-        Conductor = scipy.transpose(scipy.where(Arr > 0))
-        return Contact,Conductor
+        img = Image.open(atlas)
+        arr = scipy.asarray(img)
+        contact = []
+        contact_shades = [149, 179, 209, 239]
+        for shade in contact_shades:
+            a = scipy.array(scipy.where(arr == shade))
+            if a.shape[1] == 0: continue
+            contact.append(a)
+        conductor = scipy.transpose(scipy.where(arr > 0))
+        return contact,conductor
 
 
 
@@ -117,20 +118,23 @@ class Contact:
     def build_SIGMA(self, Nodes, contact):
         """Build the self-energy matrix SIGMA by determining the nodes
         adjacent to a Contact and inserting the greensfunction times t**2"""
-        SIGMA = lil_matrix((len(Nodes), len(Nodes)), dtype=scipy.complex128)
+        contact_index = 0
+        SIGMA = []
         for ind_contact in contact:
+            SIGMA.append(lil_matrix((len(Nodes), len(Nodes)), dtype=scipy.complex128))
             for contact_node in range(ind_contact.shape[1]):
                 index = Nodes[tuple(ind_contact.T[contact_node])][0]
-                SIGMA[index, index] = Parameters.t * self.greensfunction_contact(ind_contact, contact_node)
+                SIGMA[contact_index][index, index] = Parameters.t * self.greensfunction_contact(ind_contact, contact_node)
+            contact_index +=1
         return SIGMA
 
     def greensfunction_contact(self, ind_contact, contact_node):
         """calculates the value of the transverse mode's square at the point
         of the contact_node, essentially sin(pi)sin(pi) multiplied with
         appropriate amplitude and constats """
-        Length = ind_contact.shape[1]*Parameters.a
+        Length = (ind_contact.shape[1]-1.0)
         Amplitude = scipy.sqrt(1/Length)
-        Phase = scipy.exp(1j*scipy.pi/Length*Parameters.a)
+        Phase = scipy.exp(1j*scipy.pi/Length)
         xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length)
         greensfunction = (xi**2) * Phase
         return greensfunction
@@ -179,6 +183,14 @@ def RRGM(blocks, Aview):
         GR[i-1, i-1] = gl[i-1]-gl[i-1] * Aview[i-1,i] * GR[i, i-1]
     return gl, GR
 
+def fermifunction(E):
+
+def LSIGMA(SIGMA):
+    LGAMMA = []
+    for sigma in SIGMA:
+        LGAMMA.append(-(sigma - sigma.getH()))
+    return LGAMMA
+
 def LRGM(blocks, Aview):
    pass
 timeittook=time.time()
@@ -188,7 +200,7 @@ c = Contact()
 cont, cond = d.read_geometry()
 nodes = d.compose_geo()
 s = c.build_SIGMA(nodes, cont)
-A = build_EF(nodes) - d.HD() - s
+A = build_EF(nodes) - d.HD() - s[0] - s[1]
 b, Aview = blocks(cond, A)
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #plt.show()
