@@ -49,6 +49,7 @@ class Parameters:
     lambdaf = 10
     BField = 0
     Egrid = scipy.arange(-0.1,0.4,0.005)
+    E = 1.8
 
 class Device:
     """Contains all methods relating to the device in particular and
@@ -107,9 +108,6 @@ class Device:
         HD = self.build_HD(self.compose_geo(b))
         return HD
 
-def build_EF(Nodes, lambdaf=Parameters.lambdaf , t=Parameters.t):
-    EF = 2*t*(scipy.cos(scipy.pi/lambdaf))*eye(len(Nodes),len(Nodes),dtype=scipy.complex128, format='lil')
-    return EF
 
 class Contact:
     """Defines all the methods and attributes needed to evaluate the
@@ -139,69 +137,89 @@ class Contact:
         greensfunction = (xi**2) * Phase
         return greensfunction
 
-def blocks(cond, A):
+def calc_Ef(lambdaf=Parameters.lambdaf , t=Parameters.t):
+    Ef = 2*t*(scipy.cos(scipy.pi/lambdaf))
+    return Ef
+
+def fermifunction(E, kT=Parameters.kT, mu=calc_Ef()):
+    """ Simple Fermifunction """
+    fermifnc = 1/(scipy.exp((E-mu)/kT)+1)
+    return fermifnc
+
+def blocks(cond, matrix):
     block_size = 1
     block_sizes = []
-    for i in range(len(cond)):
+    for i in range(1,len(cond)):
         if cond[i][0] == cond[i-1][0]:
             block_size +=1
         else:
             block_sizes.append(block_size)
             block_size = 1
     block_sizes.append(block_size)
-    del block_sizes[0]
-    Aview = {}
+    matrix_block = {}
     current_start = 0
     row_index = 0
     column_index = 0
-    Aview[row_index, column_index] = A[0:block_sizes[0],0:block_sizes[0]]
+    matrix_block[row_index, column_index] = matrix[0:block_sizes[0],0:block_sizes[0]]
     for i,current_block, next_block in neighbour_zero(block_sizes):
         next_start = current_start + current_block
         next_end = current_start + current_block +next_block
-        Aview[row_index+1, column_index+1] = A[next_start:next_end,next_start:next_end]
-        Aview[row_index, column_index+1] = A[current_start:next_start, next_start:next_end]
-        Aview[row_index+1, column_index] = A[next_start:next_end, current_start:next_start]
+        matrix_block[row_index+1, column_index+1] = matrix[next_start:next_end,next_start:next_end]
+        matrix_block[row_index, column_index+1] = matrix[current_start:next_start, next_start:next_end]
+        matrix_block[row_index+1, column_index] = matrix[next_start:next_end, current_start:next_start]
         current_start +=current_block
         row_index +=1
         column_index +=1
-    return block_sizes, Aview
+    return block_sizes, matrix_block
 
 def RRGM(blocks, Aview):
-    gl = [Aview[0,0].todense().I]
-    iterator = range(1,len(blocks)).__iter__()
-    prev_greensfunction = gl[0]
-    for i in iterator:
-        prev_greensfunction = (Aview[i,i]-Aview[i, i-1] * prev_greensfunction * Aview[i-1,i]).I
-        gl.append(prev_greensfunction)
+    """ Performs recursive algorithm (Svizhenko et. al) to calculate the retarded green's
+    function, uses views on A, i.e. the block matrices of A, by Aview """
+    grl = [Aview[0,0].todense().I]
+    prev_greensfnc = grl[0]
+    for i in range(1,len(blocks)):
+        prev_greensfnc = (Aview[i,i]-Aview[i, i-1] * prev_greensfnc * Aview[i-1,i]).I
+        grl.append(prev_greensfnc)
     GR = {}
-    GR[len(blocks)-1,len(blocks)-1] = gl[-1]
+    GR[len(blocks)-1,len(blocks)-1] = grl[-1]
     rev_iterator = reversed(range(1,len(blocks)))
     for i in rev_iterator:
-        print i
-        GR[i, i-1] = -GR[i,i] * Aview[i,i-1] * gl[i-1]
-        GR[i-1, i] = -gl[i-1] * Aview[i-1,i] * GR[i,i]
-        GR[i-1, i-1] = gl[i-1]-gl[i-1] * Aview[i-1,i] * GR[i, i-1]
-    return gl, GR
+        GR[i, i-1] = -GR[i,i] * Aview[i,i-1] * grl[i-1]
+        GR[i-1, i] = -grl[i-1] * Aview[i-1,i] * GR[i,i]
+        GR[i-1, i-1] = grl[i-1]-grl[i-1] * Aview[i-1,i] * GR[i, i-1]
+    return grl, GR
 
-def fermifunction(E):
+def lesserfy(selfenergy_matrix, E):
+    """ Calculates the SIGMA-LESSER for both contacts as defined in
+    Datta FATT p.227. (caution there SIGMA-IN) """
+    lesser_matrix = -(selfenergy_matrix - selfenergy_matrix.getH()) * fermifunction(E)
+    return lesser_matrix
 
-def LSIGMA(SIGMA):
-    LGAMMA = []
-    for sigma in SIGMA:
-        LGAMMA.append(-(sigma - sigma.getH()))
-    return LGAMMA
+def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.E ):
+   """ Performs recursive algorithm (Svizhenko et.al) to calculate
+   lesser green's function by the use of the diagonal and offdiagonal
+   matrix-elements of the retarded green's function """
+   gll = [grl[0] * lesserfy(sigma_block[0,0],E) * grl[0].getH()]
+   #for i in range(1,len(blocks)-1):
+   i = 1
+   prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].getH()) * grl[i].getH()
+   gll.append(prev_lesser_greenfnc)
+   #print i
 
-def LRGM(blocks, Aview):
-   pass
+
+
 timeittook=time.time()
 d = Device()
 c = Contact()
 
 cont, cond = d.read_geometry()
 nodes = d.compose_geo()
-s = c.build_SIGMA(nodes, cont)
-A = build_EF(nodes) - d.HD() - s[0] - s[1]
-b, Aview = blocks(cond, A)
+sigma = c.build_SIGMA(nodes, cont)
+A = Parameters.E*eye(len(nodes),len(nodes),dtype=scipy.complex128, format='lil') - d.HD() - sigma[0] - sigma[1]
+b, Ablock = blocks(cond, A)
+Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
+
+grl, GR = RRGM(b, Ablock)
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #plt.show()
 
