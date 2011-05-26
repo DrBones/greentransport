@@ -6,7 +6,7 @@ The X-axis is the row Y-Axis the column, X=Down; Y=Right
 """
 import scipy
 from PIL import Image
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 from itertools import tee,izip_longest
 from scipy.sparse import lil_matrix,eye
@@ -37,7 +37,11 @@ class Parameters:
     """Contains all nedded physical constants and parameters"""
 
     atlas = 'largedot10x10onblack.bmp'
-    Confinement = 0
+    Confinement = scipy.array([-0.1, -0.1,-0.1,-0.1,-0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+            0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.4, 0.4,
+            0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.6, 0.6]) + (1j*1e-15)
+
+
     q = 1.6e-19
     hbar = 1.0545e-34/q                         #eV.s
     a = 2e-10                                  #mesh distance in meter
@@ -92,7 +96,6 @@ class Device:
 
     def build_HD(self, Nodes, Potential=Parameters.Confinement,t=Parameters.t,BField=Parameters.BField):
         HD = lil_matrix((len(Nodes),len(Nodes)),dtype=scipy.complex128)
-        HD.setdiag([Potential+4*t]*len(Nodes))
         for item in Nodes:
             if Nodes[item][1] != None:
                 HD[Nodes[item][0],Nodes[item][1]] = -scipy.exp(1j*BField*Nodes[item][0])*t
@@ -101,6 +104,7 @@ class Device:
             HD[Nodes[item][0],Nodes[item][2]] = -t
         #HD = HD + HD.conjugate().T
         HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
+        HD.setdiag(Potential+4*t)
         return HD
 
     def HD(self):
@@ -173,21 +177,21 @@ def blocks(cond, matrix):
         column_index +=1
     return block_sizes, matrix_block
 
-def RRGM(blocks, Aview):
+def RRGM(blocks, Ablock):
     """ Performs recursive algorithm (Svizhenko et. al) to calculate the retarded green's
-    function, uses views on A, i.e. the block matrices of A, by Aview """
-    grl = [Aview[0,0].todense().I]
+    function, uses views on A, i.e. the block matrices of A, by Ablock """
+    grl = [Ablock[0,0].todense().I]
     prev_greensfnc = grl[0]
     for i in range(1,len(blocks)):
-        prev_greensfnc = (Aview[i,i]-Aview[i, i-1] * prev_greensfnc * Aview[i-1,i]).I
+        prev_greensfnc = (Ablock[i,i]-Ablock[i, i-1] * prev_greensfnc * Ablock[i-1,i]).I
         grl.append(prev_greensfnc)
     Gr = {}
     Gr[len(blocks)-1,len(blocks)-1] = grl[-1]
     rev_iterator = reversed(range(1,len(blocks)))
     for i in rev_iterator:
-        Gr[i, i-1] = -Gr[i,i] * Aview[i,i-1] * grl[i-1]
-        Gr[i-1, i] = -grl[i-1] * Aview[i-1,i] * Gr[i,i]
-        Gr[i-1, i-1] = grl[i-1]-grl[i-1] * Aview[i-1,i] * Gr[i, i-1]
+        Gr[i, i-1] = -Gr[i,i] * Ablock[i,i-1] * grl[i-1]
+        Gr[i-1, i] = -grl[i-1] * Ablock[i-1,i] * Gr[i,i]
+        Gr[i-1, i-1] = grl[i-1]-grl[i-1] * Ablock[i-1,i] * Gr[i, i-1]
     return grl, Gr
 
 def lesserfy(selfenergy_matrix, E):
@@ -227,9 +231,13 @@ b, Ablock = blocks(cond, A)
 Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
 grl, Gr = RRGM(b, Ablock)
 lg = LRGM(b, Ablock, grl, sigma_block)
-sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
+lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
+gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
+plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
 #plt.imshow(scipy.asarray(HD.todense()).real)
-#plt.show()
+#imshow(absolute(lgmatrix))
+#imshow(-gmatrix.imag/2*scipy.pi)
+plt.show()
 
 print "The Process took", time.time()-timeittook, "seconds"
 #Nodes2 = compose_geo2(Cond)
