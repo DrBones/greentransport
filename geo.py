@@ -13,6 +13,7 @@ from scipy.sparse import lil_matrix,eye
 #from scipy.sparse.linalg import splu
 #from scipy.sparse.linalg import spsolve
 #from scipy.linalg import solve, norm
+import scipy.linalg as sl
 
 #from itertools import islice
 scipy.set_printoptions(precision=3,suppress=True)
@@ -180,32 +181,38 @@ def RRGM(blocks, Aview):
     for i in range(1,len(blocks)):
         prev_greensfnc = (Aview[i,i]-Aview[i, i-1] * prev_greensfnc * Aview[i-1,i]).I
         grl.append(prev_greensfnc)
-    GR = {}
-    GR[len(blocks)-1,len(blocks)-1] = grl[-1]
+    Gr = {}
+    Gr[len(blocks)-1,len(blocks)-1] = grl[-1]
     rev_iterator = reversed(range(1,len(blocks)))
     for i in rev_iterator:
-        GR[i, i-1] = -GR[i,i] * Aview[i,i-1] * grl[i-1]
-        GR[i-1, i] = -grl[i-1] * Aview[i-1,i] * GR[i,i]
-        GR[i-1, i-1] = grl[i-1]-grl[i-1] * Aview[i-1,i] * GR[i, i-1]
-    return grl, GR
+        Gr[i, i-1] = -Gr[i,i] * Aview[i,i-1] * grl[i-1]
+        Gr[i-1, i] = -grl[i-1] * Aview[i-1,i] * Gr[i,i]
+        Gr[i-1, i-1] = grl[i-1]-grl[i-1] * Aview[i-1,i] * Gr[i, i-1]
+    return grl, Gr
 
 def lesserfy(selfenergy_matrix, E):
     """ Calculates the SIGMA-LESSER for both contacts as defined in
     Datta FATT p.227. (caution there SIGMA-IN) """
-    lesser_matrix = -(selfenergy_matrix - selfenergy_matrix.getH()) * fermifunction(E)
+    lesser_matrix = -(selfenergy_matrix - selfenergy_matrix.conj()) * fermifunction(E)
     return lesser_matrix
 
 def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.E ):
-   """ Performs recursive algorithm (Svizhenko et.al) to calculate
-   lesser green's function by the use of the diagonal and offdiagonal
-   matrix-elements of the retarded green's function """
-   gll = [grl[0] * lesserfy(sigma_block[0,0],E) * grl[0].getH()]
-   #for i in range(1,len(blocks)-1):
-   i = 1
-   prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].getH()) * grl[i].getH()
-   gll.append(prev_lesser_greenfnc)
-   #print i
-
+    """ Performs recursive algorithm (Svizhenko et.al) to calculate
+    lesser green's function by the use of the diagonal and offdiagonal
+    matrix-elements of the retarded green's function """
+    gll = [grl[0] * lesserfy(sigma_block[0,0],E) * grl[0].conj()]
+    for i in range(1,len(blocks)-1):
+        prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].conj()) * grl[i].conj()
+        gll.append(prev_lesser_greenfnc)
+    gll.append(grl[i+1] * (lesserfy(sigma_block[i+1,i+1], E) + Ablock[i+1,i] * gll[i] * Ablock[i,i+1].conj()) * grl[i+1].conj())
+    Gl = {}
+    Gl[len(blocks)-1,len(blocks)-1] = gll[-1]
+    rev_iterator = reversed(range(1,len(blocks)))
+    for i in rev_iterator:
+        Gl[i,i-1] = Gr[i,i] * Ablock[i,i-1] * gll[i-1] + Gl[i,i] * Ablock[i,i-1].conj() * grl[i-1].conj()
+        Gl[i-1,i-1] = (gll[i-1] + grl[i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i,i-1].conj()) * grl[i-1].conj() +
+                                 (gll[i-1] * Ablock[i-1,i].conj() * Gr[i, i-1].conj() + Gr[i-1,i] * Ablock[i,i-1] * gll[i-1]))
+    return Gl
 
 
 timeittook=time.time()
@@ -218,8 +225,9 @@ sigma = c.build_SIGMA(nodes, cont)
 A = Parameters.E*eye(len(nodes),len(nodes),dtype=scipy.complex128, format='lil') - d.HD() - sigma[0] - sigma[1]
 b, Ablock = blocks(cond, A)
 Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
-
-grl, GR = RRGM(b, Ablock)
+grl, Gr = RRGM(b, Ablock)
+lg = LRGM(b, Ablock, grl, sigma_block)
+sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #plt.show()
 
