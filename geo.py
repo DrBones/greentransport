@@ -37,9 +37,10 @@ class Parameters:
     """Contains all nedded physical constants and parameters"""
 
     atlas = 'largedot10x10onblack.bmp'
-    Confinement = scipy.array([-0.1, -0.1,-0.1,-0.1,-0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
-            0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.4, 0.4,
-            0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.6, 0.6]) + (1j*1e-15)
+    Confinement = scipy.asarray([0]*60)
+    #Confinement = scipy.array([-0.1, -0.1,-0.1,-0.1,-0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+            #0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.4, 0.4,
+            #0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.6, 0.6]) + (1j*1e-15)
 
 
     q = 1.6e-19
@@ -71,9 +72,16 @@ class Device:
             if a.shape[1] == 0: continue
             contact.append(a)
         conductor = scipy.transpose(scipy.where(arr > 0))
+        header = []
+        header.append("# vtk DataFile Version 2.0\nVTK Data of Device\nASCII\nDATASET STRUCTURED_POINTS\n")
+        header.append("DIMENSIONS {0} {1} 1".format(arr.shape[0], arr.shape[1]))
+        header.append("\nSPACING 1 1 1\nORIGIN 0 0 0\nPOINT_DATA {0}".format(arr.shape[0] * arr.shape[1]))
+        header.append("\nSCALARS EDensity double 1\nLOOKUP_TABLE default\n")
+        with open('geo.vtk', 'w') as file:
+            for line in header:
+                file.write(line)
+        Parameters.shape = arr.shape
         return contact,conductor
-
-
 
     def compose_geo(self, Cond=read_geometry(Parameters.atlas)[1]):
         Nodes = {}
@@ -239,6 +247,13 @@ plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
 #imshow(-gmatrix.imag/2*scipy.pi)
 plt.show()
 
+with open('geo.vtk', 'a') as file:
+    for x_pixel in range(Parameters.shape[0]):
+        for y_pixel in range(Parameters.shape[1]):
+            try:
+                file.write(str(lgmatrix.real[nodes[x_pixel,y_pixel][0], nodes[x_pixel,y_pixel][0]]/(lgmatrix.real.max()*2*scipy.pi)) + "\n")
+            except KeyError:
+                file.write('0\n')
 print "The Process took", time.time()-timeittook, "seconds"
 #Nodes2 = compose_geo2(Cond)
 #def main():
@@ -247,4 +262,5 @@ print "The Process took", time.time()-timeittook, "seconds"
 #
 #if __name__ == '__main__':
 #    main()
+
 #    
