@@ -35,33 +35,36 @@ def pairwise(seq):
     return izip_longest(a,b)
 
 class Parameters:
-    """Contains all nedded physical constants and parameters"""
+    """Contains all needed physical constants and parameters"""
 
-    atlas = 'largedot10x10onblack.bmp'
-    potential_drop = [-0.4, 0.4]
-    #Confinement = scipy.array([-0.1, -0.1,-0.1,-0.1,-0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
-            #0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.4, 0.4,
-            #0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.6, 0.6]) + (1j*1e-15)
-
-
+    atlas = 'bar500x1onblack.bmp'
+    potential_drop = [-0.05, 0.05] #Potential Drop over legth of device
     q = 1.6e-19
     hbar = 1.0545e-34/q                         #eV.s
     a = 2e-10                                  #mesh distance in meter
     m0 = 9.1e-31;                              #kg
     m0 = 0.510e6/((3e8)**2)                     #restmass of electron in eV
-    mass = m0                                  #effective mass in eV
+    mass = 0.25*m0                                  #effective mass in eV
     t = (hbar**2)/(2*mass*(a**2))
     mu = 0.25                                    #electro-chemical potential in eV
-    kT = 0.0025                                  #Temperature * k_boltzmann in eV, 0.0025ev~30K
+    kT = 0.025                                  #Temperature * k_boltzmann in eV, 0.0025ev~30K
     lambdaf = 10
     BField = 0
-    Egrid = scipy.arange(-0.1,0.4,0.005)
-    E = 1.8
+    zplus = 1j*1e-12
+    Egrid = scipy.linspace(-0.1,0.4,250)+zplus
+    dE = Egrid[1]-Egrid[0]
 
 class Device:
     """Contains all methods relating to the device in particular and
     implicit like the defining geometry and the building of the
     Hamiltonian HD"""
+
+    def __init__(self):
+        """ Initilizes the device object and executes read_ and compose
+        geometry"""
+        self.read_geometry()
+        self.compose_nodes()
+        self.build_HD()
 
     def read_geometry(self, atlas=Parameters.atlas):
         img = Image.open(atlas)
@@ -81,82 +84,81 @@ class Device:
         with open('geo.vtk', 'w') as file:
             for line in header:
                 file.write(line)
-        Parameters.shape = arr.shape
-        return contact,conductor
+        potential = []
+        for i in range(arr.shape[1]):
+            potential.append(scipy.vstack(scipy.r_[Parameters.potential_drop[0]:Parameters.potential_drop[1]:arr.shape[0]*1j]))
+        potential = scipy.hstack(tuple(potential))
 
-    def compose_geo(self, Cond=read_geometry(Parameters.atlas)[1]):
-        Nodes = OrderedDict()
-        Count = 0
-        for item,next_item in pairwise(Cond):
+        Parameters.shape = arr.shape
+        self.potential_grid = potential
+        self.contact = contact
+        self.conductor = conductor
+
+    def compose_nodes(self):
+        nodes = OrderedDict()
+        count = 0
+        for item,next_item in pairwise(self.conductor):
             try:
                 if item[1] == next_item[1]-1:
-                    Nodes[tuple(item)] = [Count,Count+1,None]
+                    nodes[tuple(item)] = [count,count+1,None]
                 else:
-                    Nodes[tuple(item)] = [Count,None,None]
+                    nodes[tuple(item)] = [count,None,None]
             except TypeError:
-                Nodes[tuple(item)] = [Count,None,None]
+                nodes[tuple(item)] = [count,None,None]
             if item[0]>1:
                 try:
-                    Nodes[tuple(item - [1,0])][2] = Count
+                    nodes[tuple(item - [1,0])][2] = count
                 except KeyError:
                     pass
-            Count +=1
-        return Nodes
-
-    def build_HD(self, Nodes, t=Parameters.t,BField=Parameters.BField):
-        HD = lil_matrix((len(Nodes),len(Nodes)),dtype=scipy.complex128)
-        for item in Nodes:
-            if Nodes[item][1] != None:
-                HD[Nodes[item][0],Nodes[item][1]] = -scipy.exp(1j*BField*Nodes[item][0])*t
-            else: pass
-            if Nodes[item][2] == None: continue
-            HD[Nodes[item][0],Nodes[item][2]] = -t
-        #HD = HD + HD.conjugate().T
-        HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
-        potential = []
-        for i in range(Parameters.shape[1]):
-            potential.append(scipy.vstack(scipy.r_[Parameters.potential_drop[0]: Parameters.potential_drop[1]:Parameters.shape[0]*1j]))
-        potential = scipy.hstack(tuple(potential))
+            count +=1
         potential_serialized = scipy.array([])
         for key, value in nodes.items():
-           potential_serialized = scipy.concatenate((potential_serialized, [potential[key[0],key[1]]]))
-        HD.setdiag(potential_serialized+4*t)
-        return HD
+           potential_serialized = scipy.concatenate((potential_serialized, [self.potential_grid[key[0],key[1]]]))
+        self.potential_serialized = potential_serialized
+        self.nodes = nodes
 
-    def HD(self):
-        """docstring for HD"""
-        a, b = self.read_geometry()
-        HD = self.build_HD(self.compose_geo(b))
-        return HD
-
+    def build_HD(self, t=Parameters.t,BField=Parameters.BField):
+        HD = lil_matrix((len(self.nodes),len(self.nodes)),dtype=scipy.complex128)
+        for item in self.nodes:
+            if self.nodes[item][1] != None:
+                HD[self.nodes[item][0],self.nodes[item][1]] = -scipy.exp(1j*BField*self.nodes[item][0])*t
+            else: pass
+            if self.nodes[item][2] == None: continue
+            HD[self.nodes[item][0],self.nodes[item][2]] = -t
+        #HD = HD + HD.conjugate().T
+        HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
+        HD.setdiag(self.potential_serialized+2*t+Parameters.zplus)
+        self.HD = HD
 
 class Contact:
     """Defines all the methods and attributes needed to evaluate the
     effects of Contacts via the self-energy"""
 
-    def build_SIGMA(self, Nodes, contact):
+    def greensfunction_contact(self, ind_contact, contact_node,E):
+        """calculates the value of the transverse mode's square at the point
+        of the contact_node, essentially sin(pi)sin(pi) multiplied with
+        appropriate amplitude and constats """
+        #Length = (ind_contact.shape[1]-1.0)
+        #Amplitude = scipy.sqrt(1/Length)
+        ka = scipy.arccos(1-E/(2*Parameters.t))
+        Phase = scipy.exp(1j*ka)
+        #xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length)
+        xi = 1
+        greensfunction = (xi**2) * Phase
+        return greensfunction
+
+    def build_SIGMA(self, nodes, contact, E=Parameters.Egrid[0]):
         """Build the self-energy matrix SIGMA by determining the nodes
         adjacent to a Contact and inserting the greensfunction times t**2"""
         contact_index = 0
         SIGMA = []
         for ind_contact in contact:
-            SIGMA.append(lil_matrix((len(Nodes), len(Nodes)), dtype=scipy.complex128))
+            SIGMA.append(lil_matrix((len(nodes), len(nodes)), dtype=scipy.complex128))
             for contact_node in range(ind_contact.shape[1]):
-                index = Nodes[tuple(ind_contact.T[contact_node])][0]
-                SIGMA[contact_index][index, index] = Parameters.t * self.greensfunction_contact(ind_contact, contact_node)
+                index = nodes[tuple(ind_contact.T[contact_node])][0]
+                SIGMA[contact_index][index, index] = - Parameters.t * self.greensfunction_contact(ind_contact, contact_node, E)
             contact_index +=1
         return SIGMA
-
-    def greensfunction_contact(self, ind_contact, contact_node):
-        """calculates the value of the transverse mode's square at the point
-        of the contact_node, essentially sin(pi)sin(pi) multiplied with
-        appropriate amplitude and constats """
-        Length = (ind_contact.shape[1]-1.0)
-        Amplitude = scipy.sqrt(1/Length)
-        Phase = scipy.exp(1j*scipy.pi/Length)
-        xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length)
-        greensfunction = (xi**2) * Phase
-        return greensfunction
 
 def calc_Ef(lambdaf=Parameters.lambdaf , t=Parameters.t):
     Ef = 2*t*(scipy.cos(scipy.pi/lambdaf))
@@ -216,7 +218,7 @@ def lesserfy(selfenergy_matrix, E):
     lesser_matrix = -(selfenergy_matrix - selfenergy_matrix.conj()) * fermifunction(E)
     return lesser_matrix
 
-def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.E ):
+def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.Egrid[0] ):
     """ Performs recursive algorithm (Svizhenko et.al) to calculate
     lesser green's function by the use of the diagonal and offdiagonal
     matrix-elements of the retarded green's function """
@@ -238,36 +240,50 @@ def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.E ):
 timeittook=time.time()
 d = Device()
 c = Contact()
+#Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
+dos = scipy.array([0]*500)
+tic = time.time()
+for energy in Parameters.Egrid:
+    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_SIGMA(d.nodes, d.contact,energy - Parameters.potential_drop[0])[0] - c.build_SIGMA(d.nodes, d.contact, energy - Parameters.potential_drop[1])[1]
+    block, Ablock = blocks(d.conductor, A)
+    grl, Gr = RRGM(block, Ablock)
+    green_diag = scipy.array([])
+    for i in range(len(block)):
+        diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
+        green_diag = scipy.hstack((green_diag, diag))
+    dos=dos+(fermifunction(energy)*Parameters.dE*green_diag.imag/(-2*scipy.pi*Parameters.a))
+print time.time() -tic
 
-cont, cond = d.read_geometry()
-nodes = d.compose_geo()
-sigma = c.build_SIGMA(nodes, cont)
-A = Parameters.E*eye(len(nodes),len(nodes),dtype=scipy.complex128, format='lil') - d.HD() - sigma[0] - sigma[1]
-b, Ablock = blocks(cond, A)
-Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
-grl, Gr = RRGM(b, Ablock)
-lg = LRGM(b, Ablock, grl, sigma_block)
-green_diag = scipy.array([])
-for i in range(len(b)):
-    print i
-    diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
-    green_diag = scipy.hstack((green_diag, diag))
+mdos = scipy.array([0]*500)
+tic = time.time()
+for energy in Parameters.Egrid:
+    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_SIGMA(d.nodes, d.contact,energy - Parameters.potential_drop[0])[0] - c.build_SIGMA(d.nodes, d.contact, energy - Parameters.potential_drop[1])[1]
+    green_diag = A.todense().I
+    mdos=mdos+(fermifunction(energy)*Parameters.dE*scipy.diagonal(green_diag.imag)/(-2*scipy.pi*Parameters.a))
+print time.time() -tic
+#lg = LRGM(b, Ablock, grl, sigma_block)
+#
+#for i in range(len(b)):
 
-lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
-gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
+#    print i
+#    diag = scipy.array(lg[i,i].diagonal()).reshape(-1)
+#    lesser_green_diag = scipy.hstack((green_diag, diag))
+
+#lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
+#gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
 #plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #imshow(absolute(lgmatrix))
 #imshow(-gmatrix.imag/2*scipy.pi)
 #plt.show()
 
-with open('geo.vtk', 'a') as file:
-    for x_pixel in range(Parameters.shape[0]):
-        for y_pixel in range(Parameters.shape[1]):
-            try:
-                file.write(str(gmatrix.imag[nodes[x_pixel,y_pixel][0], nodes[x_pixel,y_pixel][0]]/(2*scipy.pi)) + "\n")
-            except KeyError:
-                file.write('0\n')
+#with open('geo.vtk', 'a') as file:
+#    for x_pixel in range(Parameters.shape[0]):
+#        for y_pixel in range(Parameters.shape[1]):
+#            try:
+#                file.write(str(gmatrix.imag[nodes[x_pixel,y_pixel][0], nodes[x_pixel,y_pixel][0]]/(2*scipy.pi)) + "\n")
+#            except KeyError:
+#                file.write('0\n')
 print "The Process took", time.time()-timeittook, "seconds"
 #Nodes2 = compose_geo2(Cond)
 #def main():
