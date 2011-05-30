@@ -6,7 +6,7 @@ The X-axis is the row Y-Axis the column, X=Down; Y=Right
 """
 import scipy
 from PIL import Image
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 from itertools import tee,izip_longest
 from scipy.sparse import lil_matrix,eye
@@ -14,6 +14,7 @@ from scipy.sparse import lil_matrix,eye
 #from scipy.sparse.linalg import spsolve
 #from scipy.linalg import solve, norm
 import scipy.linalg as sl
+from collections import OrderedDict
 
 #from itertools import islice
 scipy.set_printoptions(precision=3,suppress=True)
@@ -37,7 +38,7 @@ class Parameters:
     """Contains all nedded physical constants and parameters"""
 
     atlas = 'largedot10x10onblack.bmp'
-    Confinement = scipy.asarray([0]*60)
+    potential_drop = [-0.4, 0.4]
     #Confinement = scipy.array([-0.1, -0.1,-0.1,-0.1,-0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
             #0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.4, 0.4,
             #0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.6, 0.6]) + (1j*1e-15)
@@ -84,7 +85,7 @@ class Device:
         return contact,conductor
 
     def compose_geo(self, Cond=read_geometry(Parameters.atlas)[1]):
-        Nodes = {}
+        Nodes = OrderedDict()
         Count = 0
         for item,next_item in pairwise(Cond):
             try:
@@ -102,7 +103,7 @@ class Device:
             Count +=1
         return Nodes
 
-    def build_HD(self, Nodes, Potential=Parameters.Confinement,t=Parameters.t,BField=Parameters.BField):
+    def build_HD(self, Nodes, t=Parameters.t,BField=Parameters.BField):
         HD = lil_matrix((len(Nodes),len(Nodes)),dtype=scipy.complex128)
         for item in Nodes:
             if Nodes[item][1] != None:
@@ -112,7 +113,14 @@ class Device:
             HD[Nodes[item][0],Nodes[item][2]] = -t
         #HD = HD + HD.conjugate().T
         HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
-        HD.setdiag(Potential+4*t)
+        potential = []
+        for i in range(Parameters.shape[1]):
+            potential.append(scipy.vstack(scipy.r_[Parameters.potential_drop[0]: Parameters.potential_drop[1]:Parameters.shape[0]*1j]))
+        potential = scipy.hstack(tuple(potential))
+        potential_serialized = scipy.array([])
+        for key, value in nodes.items():
+           potential_serialized = scipy.concatenate((potential_serialized, [potential[key[0],key[1]]]))
+        HD.setdiag(potential_serialized+4*t)
         return HD
 
     def HD(self):
@@ -239,19 +247,25 @@ b, Ablock = blocks(cond, A)
 Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
 grl, Gr = RRGM(b, Ablock)
 lg = LRGM(b, Ablock, grl, sigma_block)
+green_diag = scipy.array([])
+for i in range(len(b)):
+    print i
+    diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
+    green_diag = scipy.hstack((green_diag, diag))
+
 lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
 gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
-plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
+#plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
 #plt.imshow(scipy.asarray(HD.todense()).real)
 #imshow(absolute(lgmatrix))
 #imshow(-gmatrix.imag/2*scipy.pi)
-plt.show()
+#plt.show()
 
 with open('geo.vtk', 'a') as file:
     for x_pixel in range(Parameters.shape[0]):
         for y_pixel in range(Parameters.shape[1]):
             try:
-                file.write(str(lgmatrix.real[nodes[x_pixel,y_pixel][0], nodes[x_pixel,y_pixel][0]]/(lgmatrix.real.max()*2*scipy.pi)) + "\n")
+                file.write(str(gmatrix.imag[nodes[x_pixel,y_pixel][0], nodes[x_pixel,y_pixel][0]]/(2*scipy.pi)) + "\n")
             except KeyError:
                 file.write('0\n')
 print "The Process took", time.time()-timeittook, "seconds"
