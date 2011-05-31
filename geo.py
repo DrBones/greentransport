@@ -37,17 +37,18 @@ def pairwise(seq):
 class Parameters:
     """Contains all needed physical constants and parameters"""
 
-    atlas = 'bar500x1onblack.bmp'
+    atlas = 'bar50x1onblack.bmp'
     potential_drop = [-0.05, 0.05] #Potential Drop over legth of device
     q = 1.6e-19
-    hbar = 1.0545e-34/q                         #eV.s
-    a = 2e-10                                  #mesh distance in meter
-    m0 = 9.1e-31;                              #kg
-    m0 = 0.510e6/((3e8)**2)                     #restmass of electron in eV
-    mass = 0.25*m0                                  #effective mass in eV
+    hbar = 1.0545e-34/q                                                 #eV.s
+    a = 2e-10                                                           #mesh distance in meter
+    m0 = 9.1e-31;                                                       #kg
+    m0 = 0.510e6/((3e8)**2)                                             #restmass of electron in eV
+    mass = 0.25*m0                                                      #effective mass in eV
     t = (hbar**2)/(2*mass*(a**2))
-    mu = 0.25                                    #electro-chemical potential in eV
-    kT = 0.025                                  #Temperature * k_boltzmann in eV, 0.0025ev~30K
+    mu_l = 0.25                                                         #electro-chemical potential in eV
+    mu_r = mu_l - (potential_drop[1] - potential_drop[0])
+    kT = 0.025                                                          #Temperature * k_boltzmann in eV, 0.0025ev~30K
     lambdaf = 10
     BField = 0
     zplus = 1j*1e-12
@@ -147,18 +148,14 @@ class Contact:
         greensfunction = (xi**2) * Phase
         return greensfunction
 
-    def build_SIGMA(self, nodes, contact, E=Parameters.Egrid[0]):
+    def build_sigma(self, nodes, ind_contact, E=Parameters.Egrid[0]):
         """Build the self-energy matrix SIGMA by determining the nodes
         adjacent to a Contact and inserting the greensfunction times t**2"""
-        contact_index = 0
-        SIGMA = []
-        for ind_contact in contact:
-            SIGMA.append(lil_matrix((len(nodes), len(nodes)), dtype=scipy.complex128))
-            for contact_node in range(ind_contact.shape[1]):
-                index = nodes[tuple(ind_contact.T[contact_node])][0]
-                SIGMA[contact_index][index, index] = - Parameters.t * self.greensfunction_contact(ind_contact, contact_node, E)
-            contact_index +=1
-        return SIGMA
+        sigma = lil_matrix((len(nodes), len(nodes)), dtype=scipy.complex128)
+        for contact_node in range(ind_contact.shape[1]):
+            index = nodes[tuple(ind_contact.T[contact_node])][0]
+            sigma[index, index] = - Parameters.t * self.greensfunction_contact(ind_contact, contact_node, E)
+        return sigma
 
 def calc_Ef(lambdaf=Parameters.lambdaf , t=Parameters.t):
     Ef = 2*t*(scipy.cos(scipy.pi/lambdaf))
@@ -241,10 +238,11 @@ timeittook=time.time()
 d = Device()
 c = Contact()
 #Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
-dos = scipy.array([0]*500)
+dos = scipy.array([0]*50)
 tic = time.time()
 for energy in Parameters.Egrid:
-    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_SIGMA(d.nodes, d.contact,energy - Parameters.potential_drop[0])[0] - c.build_SIGMA(d.nodes, d.contact, energy - Parameters.potential_drop[1])[1]
+    print energy
+    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0]) - c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
     block, Ablock = blocks(d.conductor, A)
     grl, Gr = RRGM(block, Ablock)
     green_diag = scipy.array([])
@@ -254,13 +252,13 @@ for energy in Parameters.Egrid:
     dos=dos+(fermifunction(energy)*Parameters.dE*green_diag.imag/(-2*scipy.pi*Parameters.a))
 print time.time() -tic
 
-mdos = scipy.array([0]*500)
-tic = time.time()
-for energy in Parameters.Egrid:
-    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_SIGMA(d.nodes, d.contact,energy - Parameters.potential_drop[0])[0] - c.build_SIGMA(d.nodes, d.contact, energy - Parameters.potential_drop[1])[1]
-    green_diag = A.todense().I
-    mdos=mdos+(fermifunction(energy)*Parameters.dE*scipy.diagonal(green_diag.imag)/(-2*scipy.pi*Parameters.a))
-print time.time() -tic
+#mdos = scipy.array([0]*500)
+#tic = time.time()
+#for energy in Parameters.Egrid:
+#    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_SIGMA(d.nodes, d.contact,energy - Parameters.potential_drop[0])[0] - c.build_SIGMA(d.nodes, d.contact, energy - Parameters.potential_drop[1])[1]
+#    green_diag = A.todense().I
+#    mdos=mdos+(fermifunction(energy)*Parameters.dE*scipy.diagonal(green_diag.imag)/(-2*scipy.pi*Parameters.a))
+#print time.time() -tic
 #lg = LRGM(b, Ablock, grl, sigma_block)
 #
 #for i in range(len(b)):
