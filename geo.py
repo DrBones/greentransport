@@ -43,17 +43,19 @@ class Parameters:
     hbar = 1.0545e-34/q                                                 #eV.s
     a = 2e-10                                                           #mesh distance in meter
     m0 = 9.1e-31;                                                       #kg
-    m0 = 0.510e6/((3e8)**2)                                             #restmass of electron in eV
+    #m0 = 0.510e6/((3e8)**2)                                             #restmass of electron in eV
     mass = 0.25*m0                                                      #effective mass in eV
     t = (hbar**2)/(2*mass*(a**2))
-    mu_l = 0.25                                                         #electro-chemical potential in eV
-    mu_r = mu_l - (potential_drop[1] - potential_drop[0])
     kT = 0.025                                                          #Temperature * k_boltzmann in eV, 0.0025ev~30K
     lambdaf = 10
     BField = 0
     zplus = 1j*1e-12
     Egrid = scipy.linspace(-0.1,0.4,250)+zplus
-    dE = Egrid[1]-Egrid[0]
+    #Efermi = 2*t*(scipy.cos(scipy.pi/lambdaf))
+    Efermi = 0.1
+    dE = Egrid[1].real-Egrid[0].real
+    mu_l = Efermi + (potential_drop[1] - potential_drop[0])/2                                                      #electro-chemical potential in eV
+    mu_r = Efermi - (potential_drop[1] - potential_drop[0])/2
 
 class Device:
     """Contains all methods relating to the device in particular and
@@ -157,13 +159,9 @@ class Contact:
             sigma[index, index] = - Parameters.t * self.greensfunction_contact(ind_contact, contact_node, E)
         return sigma
 
-def calc_Ef(lambdaf=Parameters.lambdaf , t=Parameters.t):
-    Ef = 2*t*(scipy.cos(scipy.pi/lambdaf))
-    return Ef
-
-def fermifunction(E, kT=Parameters.kT, mu=calc_Ef()):
+def fermifunction(E, kT=Parameters.kT, mu=Parameters.Efermi):
     """ Simple Fermifunction """
-    fermifnc = 1/(scipy.exp((E-mu)/kT)+1)
+    fermifnc = 1/(scipy.exp((E.real-mu)/kT)+1)
     return fermifnc
 
 def blocks(cond, matrix):
@@ -209,10 +207,11 @@ def RRGM(blocks, Ablock):
         Gr[i-1, i-1] = grl[i-1]-grl[i-1] * Ablock[i-1,i] * Gr[i, i-1]
     return grl, Gr
 
-def lesserfy(selfenergy_matrix, E):
+def lesserfy(selfenergy_matrix, E, mu):
     """ Calculates the SIGMA-LESSER for both contacts as defined in
     Datta FATT p.227. (caution there SIGMA-IN) """
-    lesser_matrix = -(selfenergy_matrix - selfenergy_matrix.conj()) * fermifunction(E)
+    gamma = 1j*(selfenergy_matrix - selfenergy_matrix.getH())
+    lesser_matrix = 
     return lesser_matrix
 
 def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.Egrid[0] ):
@@ -249,7 +248,7 @@ for energy in Parameters.Egrid:
     for i in range(len(block)):
         diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
         green_diag = scipy.hstack((green_diag, diag))
-    dos=dos+(fermifunction(energy)*Parameters.dE*green_diag.imag/(-2*scipy.pi*Parameters.a))
+    dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*Parameters.a))
 print time.time() -tic
 
 #mdos = scipy.array([0]*500)
