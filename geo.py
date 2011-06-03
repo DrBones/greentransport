@@ -168,6 +168,7 @@ def fermifunction(E, kT=Parameters.kT, mu=Parameters.Efermi):
 def blocks(cond, matrix):
     block_size = 1
     block_sizes = []
+    tic = time.time()
     for i in range(1,len(cond)):
         if cond[i][0] == cond[i-1][0]:
             block_size +=1
@@ -175,6 +176,7 @@ def blocks(cond, matrix):
             block_sizes.append(block_size)
             block_size = 1
     block_sizes.append(block_size)
+    tic = time.time()
     matrix_block = {}
     current_start = 0
     row_index = 0
@@ -215,15 +217,15 @@ def lesserfy(selfenergy_matrix, E, mu):
     lesser_matrix = 1j*gamma *fermifunction(E,mu)
     return lesser_matrix
 
-def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.Egrid[0] ):
+def LRGM(blocks, Ablock, grl,sigma_l, sigma_r, E=Parameters.Egrid[0] ):
     """ Performs recursive algorithm (Svizhenko et.al) to calculate
     lesser green's function by the use of the diagonal and offdiagonal
     matrix-elements of the retarded green's function """
-    gll = [grl[0] * lesserfy(sigma_block[0,0],E) * grl[0].conj()]
+    gll = [grl[0] * lesserfy(blocks(d.conductor, sigma_l)[0,0],E) * grl[0].getH()]
     for i in range(1,len(blocks)-1):
-        prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].conj()) * grl[i].conj()
-        gll.append(prev_lesser_greenfnc)
-    gll.append(grl[i+1] * (lesserfy(sigma_block[i+1,i+1], E) + Ablock[i+1,i] * gll[i] * Ablock[i,i+1].conj()) * grl[i+1].conj())
+         prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].conj()) * grl[i].getH()
+         gll.append(prev_lesser_greenfnc)
+    gll.append(grl[i+1] * (lesserfy(blocks(d.conductor, sigma_r[i+1,i+1]), E) + Ablock[i+1,i] * gll[i] * Ablock[i,i+1].conj()) * grl[i+1].conj())
     Gl = {}
     Gl[len(blocks)-1,len(blocks)-1] = gll[-1]
     rev_iterator = reversed(range(1,len(blocks)))
@@ -241,9 +243,12 @@ c = Contact()
 dos = scipy.array([0]*len(d.nodes))
 for energy in Parameters.Egrid:
     tic = time.time()
-    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0]) - c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
+    sigma_l = c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0])
+    sigma_r = c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
+    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
     block, Ablock = blocks(d.conductor, A)
     grl, Gr = RRGM(block, Ablock)
+    Gl = LRGM(block, Ablock, grl)
     green_diag = scipy.array([])
     for i in range(len(block)):
         diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
