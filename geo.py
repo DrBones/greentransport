@@ -37,20 +37,20 @@ def pairwise(seq):
 class Parameters:
     """Contains all needed physical constants and parameters"""
 
-    atlas = 'bar50x1onblack.bmp'
+    atlas = 'wirecontact100x50.bmp'
     potential_drop = [-0.05, 0.05] #Potential Drop over legth of device
     q = 1.6e-19
     hbar = 1.0545e-34/q                                                 #eV.s
     a = 2e-10                                                           #mesh distance in meter
-    m0 = 9.1e-31;                                                       #kg
-    #m0 = 0.510e6/((3e8)**2)                                             #restmass of electron in eV
+    #m0 = 9.1e-31;                                                       #kg
+    m0 = 0.510e6/((3e8)**2)                                             #restmass of electron in eV
     mass = 0.25*m0                                                      #effective mass in eV
     t = (hbar**2)/(2*mass*(a**2))
     kT = 0.025                                                          #Temperature * k_boltzmann in eV, 0.0025ev~30K
     lambdaf = 10
     BField = 0
     zplus = 1j*1e-12
-    Egrid = scipy.linspace(-0.1,0.4,250)+zplus
+    Egrid = scipy.linspace(0.4,1.0,100)+zplus
     #Efermi = 2*t*(scipy.cos(scipy.pi/lambdaf))
     Efermi = 0.1
     dE = Egrid[1].real-Egrid[0].real
@@ -81,10 +81,10 @@ class Device:
         conductor = scipy.transpose(scipy.where(arr > 0))
         header = []
         header.append("# vtk DataFile Version 2.0\nVTK Data of Device\nASCII\nDATASET STRUCTURED_POINTS\n")
-        header.append("DIMENSIONS {0} {1} 1".format(arr.shape[0], arr.shape[1]))
+        header.append("DIMENSIONS {0} {1} 1".format(arr.shape[1], arr.shape[0]))
         header.append("\nSPACING 1 1 1\nORIGIN 0 0 0\nPOINT_DATA {0}".format(arr.shape[0] * arr.shape[1]))
         header.append("\nSCALARS EDensity double 1\nLOOKUP_TABLE default\n")
-        with open('geo.vtk', 'w') as file:
+        with open(atlas + '.vtk', 'w') as file:
             for line in header:
                 file.write(line)
         potential = []
@@ -130,7 +130,7 @@ class Device:
             HD[self.nodes[item][0],self.nodes[item][2]] = -t
         #HD = HD + HD.conjugate().T
         HD = (HD.tocsr() + HD.tocsr().conjugate().T).tolil()# might be faster
-        HD.setdiag(self.potential_serialized+2*t+Parameters.zplus)
+        HD.setdiag(self.potential_serialized+4*t+Parameters.zplus)
         self.HD = HD
 
 class Contact:
@@ -141,12 +141,13 @@ class Contact:
         """calculates the value of the transverse mode's square at the point
         of the contact_node, essentially sin(pi)sin(pi) multiplied with
         appropriate amplitude and constats """
-        #Length = (ind_contact.shape[1]-1.0)
+        Length = (ind_contact.shape[1]-1.0)
         #Amplitude = scipy.sqrt(1/Length)
-        ka = scipy.arccos(1-E/(2*Parameters.t))
+        Amplitude = 1
+        ka = scipy.arccos(1-E.real/(2*Parameters.t))
         Phase = scipy.exp(1j*ka)
-        #xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length)
-        xi = 1
+        xi = Amplitude * scipy.sin(scipy.pi * contact_node/Length)
+        #xi = 1
         greensfunction = (xi**2) * Phase
         return greensfunction
 
@@ -211,7 +212,7 @@ def lesserfy(selfenergy_matrix, E, mu):
     """ Calculates the SIGMA-LESSER for both contacts as defined in
     Datta FATT p.227. (caution there SIGMA-IN) """
     gamma = 1j*(selfenergy_matrix - selfenergy_matrix.getH())
-    lesser_matrix = 
+    lesser_matrix = 1j*gamma *fermifunction(E,mu)
     return lesser_matrix
 
 def LRGM(blocks, Ablock, grl,sigma_block, E=Parameters.Egrid[0] ):
@@ -237,10 +238,9 @@ timeittook=time.time()
 d = Device()
 c = Contact()
 #Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
-dos = scipy.array([0]*50)
-tic = time.time()
+dos = scipy.array([0]*len(d.nodes))
 for energy in Parameters.Egrid:
-    print energy
+    tic = time.time()
     A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0]) - c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
     block, Ablock = blocks(d.conductor, A)
     grl, Gr = RRGM(block, Ablock)
@@ -248,8 +248,10 @@ for energy in Parameters.Egrid:
     for i in range(len(block)):
         diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
         green_diag = scipy.hstack((green_diag, diag))
-    dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*Parameters.a))
-print time.time() -tic
+    dos = dos + green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
+    #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*Parameters.a))
+    print time.time() -tic
+
 
 #mdos = scipy.array([0]*500)
 #tic = time.time()
@@ -274,13 +276,16 @@ print time.time() -tic
 #imshow(-gmatrix.imag/2*scipy.pi)
 #plt.show()
 
-#with open('geo.vtk', 'a') as file:
-#    for x_pixel in range(Parameters.shape[0]):
-#        for y_pixel in range(Parameters.shape[1]):
-#            try:
-#                file.write(str(gmatrix.imag[nodes[x_pixel,y_pixel][0], nodes[x_pixel,y_pixel][0]]/(2*scipy.pi)) + "\n")
-#            except KeyError:
-#                file.write('0\n')
+def writetofile():
+    with open(Parameters.atlas + '.vtk', 'a') as file:
+        for x_pixel in range(Parameters.shape[0]):
+            for y_pixel in range(Parameters.shape[1]):
+                try:
+                    file.write(str(dos[d.nodes[x_pixel,y_pixel][0]]) + "\n")
+                except KeyError:
+                    file.write('0\n')
+
+writetofile()
 print "The Process took", time.time()-timeittook, "seconds"
 #Nodes2 = compose_geo2(Cond)
 #def main():
