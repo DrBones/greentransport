@@ -33,7 +33,33 @@ def pairwise(seq):
     a,b = tee(seq)
     b.next()
     return izip_longest(a,b)
+import scipy.sparse
 
+class SparseBlocks(object):
+    def __init__(self, data, chunksize=5):
+        self.data = data
+        self.chunksize = chunksize
+    def _convert_slices(self, slices):
+        newslices = []
+        for axslice in slices:
+            if isinstance(axslice, slice):
+                start, stop = axslice.start, axslice.stop
+                if axslice.start is not None:
+                    start *= self.chunksize
+                if axslice.stop is not None:
+                    stop *= self.chunksize
+                axslice = slice(start, stop, None)
+            elif axslice is not None:
+                axslice = slice(axslice, axslice+self.chunksize)
+            newslices.append(axslice)
+        return tuple(newslices)
+
+    def __getitem__(self, item):
+        item = self._convert_slices(item)
+        return self.data.__getitem__(item)
+    def __setitem__(self, item, value):
+        item = self._convert_slices(item)
+        return self.data.__setitem__(item, value)
 class Parameters:
     """Contains all needed physical constants and parameters"""
 
@@ -240,22 +266,23 @@ timeittook=time.time()
 d = Device()
 c = Contact()
 #Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
-dos = scipy.array([0]*len(d.nodes))
-for energy in Parameters.Egrid:
-    tic = time.time()
-    sigma_l = c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0])
-    sigma_r = c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
-    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
-    block, Ablock = blocks(d.conductor, A)
-    grl, Gr = RRGM(block, Ablock)
-    Gl = LRGM(block, Ablock, grl)
-    green_diag = scipy.array([])
-    for i in range(len(block)):
-        diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
-        green_diag = scipy.hstack((green_diag, diag))
-    dos = dos + green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
-    #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*Parameters.a))
-    print time.time() -tic
+def runrrgm():
+    dos = scipy.array([0]*len(d.nodes))
+    for energy in Parameters.Egrid:
+        tic = time.time()
+        sigma_l = c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0])
+        sigma_r = c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
+        A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
+        block, Ablock = blocks(d.conductor, A)
+        grl, Gr = RRGM(block, Ablock)
+        Gl = LRGM(block, Ablock, grl)
+        green_diag = scipy.array([])
+        for i in range(len(block)):
+            diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
+            green_diag = scipy.hstack((green_diag, diag))
+        dos = dos + green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
+        #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*Parameters.a))
+        print time.time() -tic
 
 
 #mdos = scipy.array([0]*500)
