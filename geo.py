@@ -8,81 +8,16 @@ import scipy
 from PIL import Image
 #import matplotlib.pyplot as plt
 import time
-from itertools import tee,izip_longest
 from scipy.sparse import lil_matrix,eye
 #from scipy.sparse.linalg import splu
 #from scipy.sparse.linalg import spsolve
 #from scipy.linalg import solve, norm
 import scipy.linalg as sl
 from collections import OrderedDict
-
 #from itertools import islice
 scipy.set_printoptions(precision=3,suppress=True)
-
-def neighbour_zero(iterable):
-    iterator = iter(iterable)
-    prev = 0
-    item = iterator.next()
-    for next in iterator:
-        yield (prev,item,next)
-        prev = item
-        item = next
-    #yield (prev,item,0)
-
-def pairwise(seq):
-    a,b = tee(seq)
-    b.next()
-    return izip_longest(a,b)
-import scipy.sparse
-
-class SparseBlocks(object):
-    def __init__(self, data, chunksize=5):
-        self.data = data
-        self.chunksize = chunksize
-    def _convert_slices(self, slices):
-        newslices = []
-        for axslice in slices:
-            if isinstance(axslice, slice):
-                start, stop = axslice.start, axslice.stop
-                if axslice.start is not None:
-                    start *= self.chunksize
-                if axslice.stop is not None:
-                    stop *= self.chunksize
-                axslice = slice(start, stop, None)
-            elif axslice is not None:
-                axslice = slice(axslice, axslice+self.chunksize)
-            newslices.append(axslice)
-        return tuple(newslices)
-
-    def __getitem__(self, item):
-        item = self._convert_slices(item)
-        return self.data.__getitem__(item)
-    def __setitem__(self, item, value):
-        item = self._convert_slices(item)
-        return self.data.__setitem__(item, value)
-class Parameters:
-    """Contains all needed physical constants and parameters"""
-
-    atlas = 'wirecontact100x50.bmp'
-    potential_drop = [-0.05, 0.05] #Potential Drop over legth of device
-    q = 1.6e-19
-    hbar = 1.0545e-34/q                                                 #eV.s
-    a = 2e-10                                                           #mesh distance in meter
-    #m0 = 9.1e-31;                                                       #kg
-    m0 = 0.510e6/((3e8)**2)                                             #restmass of electron in eV
-    mass = 0.25*m0                                                      #effective mass in eV
-    t = (hbar**2)/(2*mass*(a**2))
-    kT = 0.025                                                          #Temperature * k_boltzmann in eV, 0.0025ev~30K
-    lambdaf = 10
-    BField = 0
-    zplus = 1j*1e-12
-    Egrid = scipy.linspace(0.4,1.0,100)+zplus
-    #Efermi = 2*t*(scipy.cos(scipy.pi/lambdaf))
-    Efermi = 0.1
-    dE = Egrid[1].real-Egrid[0].real
-    mu_l = Efermi + (potential_drop[1] - potential_drop[0])/2                                                      #electro-chemical potential in eV
-    mu_r = Efermi - (potential_drop[1] - potential_drop[0])/2
-
+import customiterators
+from parameters import Parameters
 class Device:
     """Contains all methods relating to the device in particular and
     implicit like the defining geometry and the building of the
@@ -113,6 +48,9 @@ class Device:
         with open(atlas + '.vtk', 'w') as file:
             for line in header:
                 file.write(line)
+        with open(atlas + 'ldos.vtk', 'w') as fileldos:
+            for line in header:
+                fileldos.write(line)
         potential = []
         for i in range(arr.shape[1]):
             potential.append(scipy.vstack(scipy.r_[Parameters.potential_drop[0]:Parameters.potential_drop[1]:arr.shape[0]*1j]))
@@ -126,7 +64,7 @@ class Device:
     def compose_nodes(self):
         nodes = OrderedDict()
         count = 0
-        for item,next_item in pairwise(self.conductor):
+        for item,next_item in customiterators.pairwise(self.conductor):
             try:
                 if item[1] == next_item[1]-1:
                     nodes[tuple(item)] = [count,count+1,None]
@@ -194,7 +132,6 @@ def fermifunction(E, kT=Parameters.kT, mu=Parameters.Efermi):
 def blocks(cond, matrix):
     block_size = 1
     block_sizes = []
-    tic = time.time()
     for i in range(1,len(cond)):
         if cond[i][0] == cond[i-1][0]:
             block_size +=1
@@ -202,13 +139,12 @@ def blocks(cond, matrix):
             block_sizes.append(block_size)
             block_size = 1
     block_sizes.append(block_size)
-    tic = time.time()
     matrix_block = {}
     current_start = 0
     row_index = 0
     column_index = 0
     matrix_block[row_index, column_index] = matrix[0:block_sizes[0],0:block_sizes[0]]
-    for i,current_block, next_block in neighbour_zero(block_sizes):
+    for i,current_block, next_block in customiterators.neighbour_zero(block_sizes):
         next_start = current_start + current_block
         next_end = current_start + current_block +next_block
         matrix_block[row_index+1, column_index+1] = matrix[next_start:next_end,next_start:next_end]
@@ -243,22 +179,21 @@ def lesserfy(selfenergy_matrix, E, mu):
     lesser_matrix = 1j*gamma *fermifunction(E,mu)
     return lesser_matrix
 
-def LRGM(blocks, Ablock, grl,sigma_l, sigma_r, E=Parameters.Egrid[0] ):
+def LRGM(block, Ablock, grl,Gr,sigma_in_l, sigma_in_r, E=Parameters.Egrid[0] ):
     """ Performs recursive algorithm (Svizhenko et.al) to calculate
     lesser green's function by the use of the diagonal and offdiagonal
     matrix-elements of the retarded green's function """
-    gll = [grl[0] * lesserfy(blocks(d.conductor, sigma_l)[0,0],E) * grl[0].getH()]
-    for i in range(1,len(blocks)-1):
-         prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].conj()) * grl[i].getH()
-         gll.append(prev_lesser_greenfnc)
-    gll.append(grl[i+1] * (lesserfy(blocks(d.conductor, sigma_r[i+1,i+1]), E) + Ablock[i+1,i] * gll[i] * Ablock[i,i+1].conj()) * grl[i+1].conj())
+    gll = [grl[0] * sigma_in_l * grl[0].getH()]
+    for i in range(1,len(block)-1): #len(block)-1 equals N-2 because of pythons way of building the range exclusive the endpoint
+        prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i,i-1].getH()) * grl[i].getH()
+        gll.append(prev_lesser_greenfnc)
+    i +=1
+    gll.append(grl[i] * (sigma_in_r + Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].conj()) * grl[i].getH()) #N-1 step extra, belongs to for loop
     Gl = {}
-    Gl[len(blocks)-1,len(blocks)-1] = gll[-1]
-    rev_iterator = reversed(range(1,len(blocks)))
-    for i in rev_iterator:
-        Gl[i,i-1] = Gr[i,i] * Ablock[i,i-1] * gll[i-1] + Gl[i,i] * Ablock[i,i-1].conj() * grl[i-1].conj()
-        Gl[i-1,i-1] = (gll[i-1] + grl[i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i,i-1].conj()) * grl[i-1].conj() +
-                                 (gll[i-1] * Ablock[i-1,i].conj() * Gr[i, i-1].conj() + Gr[i-1,i] * Ablock[i,i-1] * gll[i-1]))
+    Gl[len(block)-1,len(block)-1] = gll[-1]
+    for i in reversed(range(1,len(block))):
+        Gl[i,i-1] = -Gr[i,i] * Ablock[i,i-1] * gll[i-1] - Gl[i,i] * Ablock[i-1,i].getH() * grl[i-1].getH()
+        Gl[i-1,i-1] = (gll[i-1] + grl[i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i-1,i].getH()) * grl[i-1].getH() - (gll[i-1] * Ablock[i,i-1].getH() * Gr[i-1,i].getH() + Gr[i-1,i] * Ablock[i,i-1] * gll[i-1]))
     return Gl
 
 
@@ -267,38 +202,39 @@ d = Device()
 c = Contact()
 #Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
 def runrrgm():
+    ldos = scipy.array([0]*len(d.nodes))
     dos = scipy.array([0]*len(d.nodes))
     for energy in Parameters.Egrid:
+        print energy
         tic = time.time()
         sigma_l = c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0])
         sigma_r = c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
-        A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
+        A = energy*scipy.sparse.eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
         block, Ablock = blocks(d.conductor, A)
         grl, Gr = RRGM(block, Ablock)
-        Gl = LRGM(block, Ablock, grl)
+        print time.time() -tic
+        tic = time.time()
+        sigma_in_l = -2* sigma_l.imag[0:block[0],0:block[0]] * fermifunction(energy, mu=Parameters.mu_l)
+        sigma_in_r = -2* sigma_r.imag[-block[-1]:,-block[0]:] * fermifunction(energy, mu=Parameters.mu_r)
+        Gl = LRGM(block, Ablock, grl,Gr, sigma_in_l, sigma_in_r, energy)
+        print time.time() -tic
+        tic = time.time()
         green_diag = scipy.array([])
         for i in range(len(block)):
             diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
             green_diag = scipy.hstack((green_diag, diag))
-        dos = dos + green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
-        #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*Parameters.a))
+        dos = dos + fermifunction(energy)*green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
+        less_green_diag = scipy.array([])
+        for i in range(len(block)):
+            less_diag = scipy.array(Gl[i,i].diagonal()).reshape(-1)
+            less_green_diag = scipy.hstack((less_green_diag, less_diag))
+        ldos = ldos + less_green_diag.real*Parameters.dE/(scipy.pi*Parameters.a)
+        #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*parameters.a))
         print time.time() -tic
+    return dos,ldos, Gr, Gl
 
+dos,ldos, Gr, Gl = runrrgm()
 
-#mdos = scipy.array([0]*500)
-#tic = time.time()
-#for energy in Parameters.Egrid:
-#    A = energy*eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - c.build_SIGMA(d.nodes, d.contact,energy - Parameters.potential_drop[0])[0] - c.build_SIGMA(d.nodes, d.contact, energy - Parameters.potential_drop[1])[1]
-#    green_diag = A.todense().I
-#    mdos=mdos+(fermifunction(energy)*Parameters.dE*scipy.diagonal(green_diag.imag)/(-2*scipy.pi*Parameters.a))
-#print time.time() -tic
-#lg = LRGM(b, Ablock, grl, sigma_block)
-#
-#for i in range(len(b)):
-
-#    print i
-#    diag = scipy.array(lg[i,i].diagonal()).reshape(-1)
-#    lesser_green_diag = scipy.hstack((green_diag, diag))
 
 #lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
 #gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
@@ -308,7 +244,7 @@ def runrrgm():
 #imshow(-gmatrix.imag/2*scipy.pi)
 #plt.show()
 
-def writetofile():
+def writetofile(dos):
     with open(Parameters.atlas + '.vtk', 'a') as file:
         for x_pixel in range(Parameters.shape[0]):
             for y_pixel in range(Parameters.shape[1]):
@@ -317,7 +253,16 @@ def writetofile():
                 except KeyError:
                     file.write('0\n')
 
-writetofile()
+
+def lwritetofile(dos):
+    with open(Parameters.atlas + 'ldos.vtk', 'a') as file:
+        for x_pixel in range(Parameters.shape[0]):
+            for y_pixel in range(Parameters.shape[1]):
+                try:
+                    file.write(str(dos[d.nodes[x_pixel,y_pixel][0]]) + "\n")
+                except KeyError:
+                    file.write('0\n')
+#writetofile(runrrgm())
 print "The Process took", time.time()-timeittook, "seconds"
 #Nodes2 = compose_geo2(Cond)
 #def main():
