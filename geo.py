@@ -13,11 +13,11 @@ from scipy.sparse import lil_matrix,eye
 #from scipy.sparse.linalg import spsolve
 #from scipy.linalg import solve, norm
 import scipy.linalg as sl
-from collections import OrderedDict
 #from itertools import islice
 scipy.set_printoptions(precision=3,suppress=True)
-import customiterators
 from parameters import Parameters
+from world import World
+from model import Model
 class Device:
     """Contains all methods relating to the device in particular and
     implicit like the defining geometry and the building of the
@@ -172,13 +172,6 @@ def RRGM(blocks, Ablock):
         Gr[i-1, i-1] = grl[i-1]-grl[i-1] * Ablock[i-1,i] * Gr[i, i-1]
     return grl, Gr
 
-def lesserfy(selfenergy_matrix, E, mu):
-    """ Calculates the SIGMA-LESSER for both contacts as defined in
-    Datta FATT p.227. (caution there SIGMA-IN) """
-    gamma = 1j*(selfenergy_matrix - selfenergy_matrix.getH())
-    lesser_matrix = 1j*gamma *fermifunction(E,mu)
-    return lesser_matrix
-
 def LRGM(block, Ablock, grl,Gr,sigma_in_l, sigma_in_r, E=Parameters.Egrid[0] ):
     """ Performs recursive algorithm (Svizhenko et.al) to calculate
     lesser green's function by the use of the diagonal and offdiagonal
@@ -196,80 +189,82 @@ def LRGM(block, Ablock, grl,Gr,sigma_in_l, sigma_in_r, E=Parameters.Egrid[0] ):
         Gl[i-1,i-1] = (gll[i-1] + grl[i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i-1,i].getH()) * grl[i-1].getH() - (gll[i-1] * Ablock[i,i-1].getH() * Gr[i-1,i].getH() + Gr[i-1,i] * Ablock[i,i-1] * gll[i-1]))
     return Gl
 
+device = World()
+model = Model(device)
 
-timeittook=time.time()
-d = Device()
-c = Contact()
+#timeittook=time.time()
+#d = Device()
+#c = Contact()
 #Sb, sigma_block = blocks(cond, sigma[0]+sigma[1])
-def runrrgm():
-    ldos = scipy.array([0]*len(d.nodes))
-    dos = scipy.array([0]*len(d.nodes))
-    for energy in Parameters.Egrid:
-        print energy
-        tic = time.time()
-        sigma_l = c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0])
-        sigma_r = c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
-        A = energy*scipy.sparse.eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
-        block, Ablock = blocks(d.conductor, A)
-        grl, Gr = RRGM(block, Ablock)
-        print time.time() -tic
-        tic = time.time()
-        sigma_in_l = -2* sigma_l.imag[0:block[0],0:block[0]] * fermifunction(energy, mu=Parameters.mu_l)
-        sigma_in_r = -2* sigma_r.imag[-block[-1]:,-block[0]:] * fermifunction(energy, mu=Parameters.mu_r)
-        Gl = LRGM(block, Ablock, grl,Gr, sigma_in_l, sigma_in_r, energy)
-        print time.time() -tic
-        tic = time.time()
-        green_diag = scipy.array([])
-        for i in range(len(block)):
-            diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
-            green_diag = scipy.hstack((green_diag, diag))
-        dos = dos + fermifunction(energy)*green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
-        less_green_diag = scipy.array([])
-        for i in range(len(block)):
-            less_diag = scipy.array(Gl[i,i].diagonal()).reshape(-1)
-            less_green_diag = scipy.hstack((less_green_diag, less_diag))
-        ldos = ldos + less_green_diag.real*Parameters.dE/(scipy.pi*Parameters.a)
-        #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*parameters.a))
-        print time.time() -tic
-    return dos,ldos, Gr, Gl
-
-dos,ldos, Gr, Gl = runrrgm()
-
-
-#lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
-#gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
-#plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
-#plt.imshow(scipy.asarray(HD.todense()).real)
-#imshow(absolute(lgmatrix))
-#imshow(-gmatrix.imag/2*scipy.pi)
-#plt.show()
-
-def writetofile(dos):
-    with open(Parameters.atlas + '.vtk', 'a') as file:
-        for x_pixel in range(Parameters.shape[0]):
-            for y_pixel in range(Parameters.shape[1]):
-                try:
-                    file.write(str(dos[d.nodes[x_pixel,y_pixel][0]]) + "\n")
-                except KeyError:
-                    file.write('0\n')
-
-
-def lwritetofile(dos):
-    with open(Parameters.atlas + 'ldos.vtk', 'a') as file:
-        for x_pixel in range(Parameters.shape[0]):
-            for y_pixel in range(Parameters.shape[1]):
-                try:
-                    file.write(str(dos[d.nodes[x_pixel,y_pixel][0]]) + "\n")
-                except KeyError:
-                    file.write('0\n')
-#writetofile(runrrgm())
-print "The Process took", time.time()-timeittook, "seconds"
-#Nodes2 = compose_geo2(Cond)
-#def main():
-#    Cont,Cond = read_geometry(atlas)            
-#    Nodes = compose_geo(Cond)  
+#def runrrgm():
+#    ldos = scipy.array([0]*len(d.nodes))
+#    dos = scipy.array([0]*len(d.nodes))
+#    for energy in Parameters.Egrid:
+#        print energy
+#        tic = time.time()
+#        sigma_l = c.build_sigma(d.nodes, d.contact[0],energy - Parameters.potential_drop[0])
+#        sigma_r = c.build_sigma(d.nodes, d.contact[1], energy - Parameters.potential_drop[1])
+#        A = energy*scipy.sparse.eye(len(d.nodes),len(d.nodes),dtype=scipy.complex128, format='lil') - d.HD - sigma_l  - sigma_r
+#        block, Ablock = blocks(d.conductor, A)
+#        grl, Gr = RRGM(block, Ablock)
+#        print time.time() -tic
+#        tic = time.time()
+#        sigma_in_l = -2* sigma_l.imag[0:block[0],0:block[0]] * fermifunction(energy, mu=Parameters.mu_l)
+#        sigma_in_r = -2* sigma_r.imag[-block[-1]:,-block[0]:] * fermifunction(energy, mu=Parameters.mu_r)
+#        Gl = LRGM(block, Ablock, grl,Gr, sigma_in_l, sigma_in_r, energy)
+#        print time.time() -tic
+#        tic = time.time()
+#        green_diag = scipy.array([])
+#        for i in range(len(block)):
+#            diag = scipy.array(Gr[i,i].diagonal()).reshape(-1)
+#            green_diag = scipy.hstack((green_diag, diag))
+#        dos = dos + fermifunction(energy)*green_diag.imag*Parameters.dE/(-2*scipy.pi*Parameters.a)
+#        less_green_diag = scipy.array([])
+#        for i in range(len(block)):
+#            less_diag = scipy.array(Gl[i,i].diagonal()).reshape(-1)
+#            less_green_diag = scipy.hstack((less_green_diag, less_diag))
+#        ldos = ldos + less_green_diag.real*Parameters.dE/(scipy.pi*Parameters.a)
+#        #dos=dos+(fermifunction(energy)*Parameters.dE.real*green_diag.imag/(-2*scipy.pi*parameters.a))
+#        print time.time() -tic
+#    return dos,ldos, Gr, Gl
 #
-#if __name__ == '__main__':
-#    main()
-
-#    
+#dos,ldos, Gr, Gl = runrrgm()
+#
+#
+##lgmatrix = sl.block_diag(lg[0,0], lg[1,1], lg[2,2], lg[3,3], lg[4,4], lg[5,5], lg[6,6], lg[7,7])
+##gmatrix = sl.block_diag(Gr[0,0], Gr[1,1], Gr[2,2], Gr[3,3], Gr[4,4], Gr[5,5], Gr[6,6], Gr[7,7])
+##plt.imshow(scipy.absolute(scipy.asarray(d.HD().todense())))
+##plt.imshow(scipy.asarray(HD.todense()).real)
+##imshow(absolute(lgmatrix))
+##imshow(-gmatrix.imag/2*scipy.pi)
+##plt.show()
+#
+#def writetofile(dos):
+#    with open(Parameters.atlas + '.vtk', 'a') as file:
+#        for x_pixel in range(Parameters.shape[0]):
+#            for y_pixel in range(Parameters.shape[1]):
+#                try:
+#                    file.write(str(dos[d.nodes[x_pixel,y_pixel][0]]) + "\n")
+#                except KeyError:
+#                    file.write('0\n')
+#
+#
+#def lwritetofile(dos):
+#    with open(Parameters.atlas + 'ldos.vtk', 'a') as file:
+#        for x_pixel in range(Parameters.shape[0]):
+#            for y_pixel in range(Parameters.shape[1]):
+#                try:
+#                    file.write(str(dos[d.nodes[x_pixel,y_pixel][0]]) + "\n")
+#                except KeyError:
+#                    file.write('0\n')
+##writetofile(runrrgm())
+#print "The Process took", time.time()-timeittook, "seconds"
+##Nodes2 = compose_geo2(Cond)
+##def main():
+##    Cont,Cond = read_geometry(atlas)            
+##    Nodes = compose_geo(Cond)  
+##
+##if __name__ == '__main__':
+##    main()
+#
+##    
