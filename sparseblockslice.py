@@ -1,4 +1,6 @@
 class SparseBlocks(object):
+    """ Slice object retunring chunks of input matrix defined by
+    [chunksize] """
     def __init__(self, data, chunksize=[1]):
         self.data = data
         if sum(chunksize) != data.shape[0]:

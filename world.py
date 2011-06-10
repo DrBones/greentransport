@@ -10,30 +10,31 @@ class World:
 
         self.__read_geometry()
         self.__compose_nodes()
+        self.__blocksizes_from_coords()
 
     def __read_geometry(self):
         from PIL import Image
-        import scipy
+        from scipy import where, asarray, array, transpose
         img = Image.open(self.atlas)
-        arr = scipy.asarray(img)
-        contact = []
+        arr = asarray(img)
+        contacts = []
         contact_shades = [149, 179, 209, 239]
         for shade in contact_shades:
-            a = scipy.array(scipy.where(arr == shade))
+            a = array(where(arr == shade))
             if a.shape[1] == 0: continue
-            contact.append(a)
-        conductor = scipy.transpose(scipy.where(arr > 0))
+            contacts.append(a)
+        active_coords = transpose(where(arr > 0))
 
         self.canvas = arr.shape
-        self.contact = contact
-        self.conductor = conductor
+        self.contacts = contacts
+        self.active_coords = active_coords
 
     def __compose_nodes(self):
         from collections import OrderedDict
-        import customiterators
+        from customiterators import pairwise
         nodes = OrderedDict()
         count = 0
-        for item,next_item in customiterators.pairwise(self.conductor):
+        for item,next_item in pairwise(self.active_coords):
             try:
                 if item[1] == next_item[1]-1:
                     nodes[tuple(item)] = [count,count+1,None]
@@ -48,3 +49,15 @@ class World:
                     pass
             count +=1
         self.nodes = nodes
+
+    def __blocksizes_from_coords(self):
+        block_size = 1
+        block_sizes = []
+        for i in range(1,len(self.active_coords)):
+            if self.active_coords[i][0] == self.active_coords[i-1][0]:
+                block_size +=1
+            else:
+                block_sizes.append(block_size)
+                block_size = 1
+        block_sizes.append(block_size)
+        self.block_sizes = block_sizes
