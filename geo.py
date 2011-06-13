@@ -13,8 +13,23 @@ from world import World
 from model import Model
 from sparseblockslice import SparseBlocks
 
-device = World()
-model = Model(device)
+def main():
+    global device, model
+    device = World()
+    model = Model(device)
+    model._Model__build_H()
+
+def alt():
+    global smodel, sdevice
+    sdevice = World()
+    smodel = Model(sdevice)
+    smodel.block_sizes = [1]*smodel.wafer.shape[0]
+    smodel.simpleH()
+    #smodel.simpleenergyintegrate(smodel.LRGM)
+
+if __name__ == '__main__':
+    main()
+
 #A, sigma_in_l, sigma_in_r = model.build_A(0.1)
 #Ablock = SparseBlocks(A, model.block_sizes)
 #green_diag, grl, Gr = model.RRGM(Ablock)
@@ -65,11 +80,3 @@ model = Model(device)
 #
 #print "The Process took", time.time()-timeittook, "seconds"
 ##Nodes2 = compose_geo2(Cond)
-##def main():
-##    Cont,Cond = read_geometry(atlas)            
-##    Nodes = compose_geo(Cond)  
-##
-##if __name__ == '__main__':
-##    main()
-#
-##    

@@ -1,6 +1,6 @@
 class World:
 
-    defaultatlas = 'wirecentralcontact100x50.bmp'
+    defaultatlas = 'wirecentralcontact100x50nopad.bmp'
 
     def __init__(self, atlas=defaultatlas):
         self.atlas = atlas
@@ -24,7 +24,7 @@ class World:
             if a.shape[1] == 0: continue
             contacts.append(a)
         active_coords = transpose(where(arr > 0))
-
+        self.wafer = arr
         self.canvas = arr.shape
         self.contacts = contacts
         self.active_coords = active_coords
@@ -42,7 +42,7 @@ class World:
                     nodes[tuple(item)] = [count,None,None]
             except TypeError:
                 nodes[tuple(item)] = [count,None,None]
-            if item[0]>1:
+            if item[0]>self.active_coords[0][0]:
                 try:
                     nodes[tuple(item - [1,0])][2] = count
                 except KeyError:
