@@ -23,8 +23,8 @@ class Model:
         self.lambdaf = 10
         self.BField = 0
         self.zplus = 1j*1e-12
-        self.Egrid = linspace(0.01,0.2,500)
-        #Efermi = 2*t*(scipy.cos(scipy.pi/lambdaf))
+        self.Egrid = linspace(0.01,0.2,10)
+        #Efermi = 2*t*(1-scipy.cos(2*scipy.pi/lambdaf))
         self.Efermi = 0.1
         self.mu = self.Efermi
         self.dE = self.Egrid[1].real-self.Egrid[0].real
