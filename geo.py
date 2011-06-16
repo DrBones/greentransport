@@ -25,10 +25,14 @@ def alt():
     smodel = Model(sdevice)
     smodel.block_sizes = [1]*smodel.wafer.shape[0]
     smodel.simpleH()
+    print 'Hamiltonian shape = ', smodel.H.shape
+    print 'SimpleSigma shape = ', smodel.simplesigma(smodel.contacts[0], 0.2).shape
+    smodel.build_convolutionkernel()
+
     #smodel.simpleenergyintegrate(smodel.LRGM)
 
 if __name__ == '__main__':
-    main()
+    alt()
 
 #A, sigma_in_l, sigma_in_r = model.build_A(0.1)
 #Ablock = SparseBlocks(A, model.block_sizes)

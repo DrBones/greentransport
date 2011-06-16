@@ -97,11 +97,9 @@ class Model:
         from scipy.sparse import lil_matrix, triu
         from scipy import complex128, exp
         H = lil_matrix((self.wafer.shape[0]*self.wafer.shape[1],self.wafer.shape[0]*self.wafer.shape[1]),dtype=complex128)
-        print H.shape
         for row in range(self.wafer.shape[0]):
             for column in range(self.wafer.shape[1]):
                 i = column+self.wafer.shape[1]*row
-                print i
                 if self.wafer[row,column] == 0:
                     H[i,i] = 100000
                 elif self.wafer[row,column] >0:
@@ -289,6 +287,28 @@ class Model:
             i+=1
             max_density.append(integral.real.max())
         return integral, max_density
+
+    def build_convolutionkernel(self):
+        from scipy import zeros, hstack, vstack
+        from scipy.linalg import norm
+        plusv_dim = self.wafer.shape[0]
+        plush_dim = self.wafer.shape[1]
+        kernel = zeros((plusv_dim, plush_dim))
+        for i in range(plusv_dim):
+            for j in range(plush_dim):
+                if i==0 and j == 0: continue
+                kernel[i,j] = 1/norm((i,j))
+        self.kernel = kernel
+        kernel = hstack((kernel[:,:0:-1], kernel))
+        self.kernel = vstack((kernel[:0:-1,:], kernel))
+
+    def hartree_from_density(self, density):
+        from scipy.signal import fftconvolve
+        target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
+        factor = 1
+        hartree = factor * fftconvolve(target, self.kernel, mode='valid')
+        return hartree
+
 
     def summatrix(self, mat):
         from summon import matrix
