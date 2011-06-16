@@ -4,9 +4,10 @@ class World:
 
     def __init__(self, atlas=defaultatlas):
         self.atlas = atlas
-        self.q = 1.6e-19
+        self.q = 1.6e-19 #Coulombs
         self.hbar = 1.0545e-34/self.q
         self.m0 = 0.510e6/((3e8)**2)
+        self.eps0 = 8.854e-12 # Vacuum permittivity F m**-1
 
         self.__read_geometry()
         self.__compose_nodes()

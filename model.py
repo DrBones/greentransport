@@ -12,18 +12,21 @@ class Model:
         self.contacts = world.contacts
         self.active_coords = world.active_coords
         self.block_sizes = world.block_sizes
+        self.eps0 = world.eps0
+        self.q = world.q
         #Potential Drop over legth of device
         self.potential_drop = [-0.01, 0.01]
         self.a = 2e-10
-        #effective mass in eV
+        #effective mass in eV real in GaAs 0.063
         self.mass = 0.25*Model.m0
         self.t = (Model.hbar**2)/(2*self.mass*(self.a**2))
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
+        self.epsr = 12.9
         self.kT = 0.025
         self.lambdaf = 10
         self.BField = 0
         self.zplus = 1j*1e-12
-        self.Egrid = linspace(0.01,0.2,10)
+        self.Egrid = linspace(0.01,0.1,10)
         #Efermi = 2*t*(1-scipy.cos(2*scipy.pi/lambdaf))
         self.Efermi = 0.1
         self.mu = self.Efermi
@@ -269,20 +272,18 @@ class Model:
         #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
         #else:
             #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
-        integral = array([0]*len(self.nodes))
+        integral = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
         #A = lil_matrix((len(self.nodes), len(self.nodes)))
         #print A
         max_density = []
         i=0
         for energy in self.Egrid:
-            print energy
             #A, sigma_in_l, sigma_in_r = self.build_A(energy)
             A, sigma_in_l, sigma_in_r = self.simpleA(energy)
             #Ablock = SparseBlocks(A, self.block_sizes)
             Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-            integral = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
-            print integral
-            self.writetovtk(integral.real, str(i))
+            integral = integral + integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
+            #self.writetovtk(integral.real, str(i))
             #self.writetovtk(integral.real, str(i))
             i+=1
             max_density.append(integral.real.max())
@@ -304,8 +305,9 @@ class Model:
 
     def hartree_from_density(self, density):
         from scipy.signal import fftconvolve
+        from scipy import pi
         target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
-        factor = 1
+        factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
 
