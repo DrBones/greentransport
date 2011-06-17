@@ -311,6 +311,11 @@ class Model:
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
 
+    def selfconsistent(self):
+        from scipy import ones
+        initial_dens = ones((self.wafer.shape[0] * self.wafer.shape[1]))
+        initial_phi = self.hartree_from_density(initial_dens)
+        density = 
 
     def summatrix(self, mat):
         from summon import matrix
