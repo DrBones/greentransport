@@ -26,7 +26,7 @@ class Model:
         self.lambdaf = 10
         self.BField = 0
         self.zplus = 1j*1e-12
-        self.Egrid = linspace(0.01,0.1,10)
+        self.Egrid = linspace(0.01,0.1,200)
         #Efermi = 2*t*(1-scipy.cos(2*scipy.pi/lambdaf))
         self.Efermi = 0.1
         self.mu = self.Efermi
@@ -42,19 +42,26 @@ class Model:
     def writetovtk(self,value,suffix=''):
         """ Input values are the serialized values of the grid, either
         custom or naive (rectangular) serialization """
-        xdim = self.wafer.shape[1]
-        ydim = self.wafer.shape[0]
+        if value.shape[0] >1  and value.shape[1] >1:
+            xdim = value.shape[1]
+            ydim = value.shape[0]
+            def linetowrite(value, row, column):
+                return file.write(str(value[row,column]) + "\n")
+        else:
+            xdim = self.wafer.shape[1]
+            ydim = self.wafer.shape[0]
+            if len(value) == xdim*ydim:
+                value = value.reshape(ydim, xdim)
+                def linetowrite(value,x, y):
+                    return file.write(str(value[x,y]) + "\n")
+            else:
+                def linetowrite(value,x, y):
+                    return file.write(str(value[self.nodes[x_pixel,y_pixel][0]]) + "\n")
         header = []
         header.append("# vtk DataFile Version 2.0\nVTK Data of Device\nASCII\nDATASET STRUCTURED_POINTS\n")
         header.append("DIMENSIONS {0} {1} 1".format(xdim, ydim))
         header.append("\nSPACING 1 1 1\nORIGIN 0 0 0\nPOINT_DATA {0}".format(xdim * ydim))
         header.append("\nSCALARS EDensity double 1\nLOOKUP_TABLE default\n")
-        def linetowrite(value,x, y):
-            if len(value) == xdim*ydim:
-                value = value.reshape(ydim, xdim)
-                return file.write(str(value[x,y]) + "\n")
-            else:
-                return file.write(str(value[self.nodes[x_pixel,y_pixel][0]]) + "\n")
         with open(Model.atlas + suffix + '.vtk', 'w') as file:
             for line in header:
                 file.write(line)
@@ -266,6 +273,7 @@ class Model:
         from scipy import pi, array
         from scipy.sparse import lil_matrix
         from sparseblockslice import SparseBlocks
+        from scipy import vstack
         #if integrand == self.RRGM:
         #    value, foo = -integrand.__call__(Ablock).imag
         #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
@@ -273,6 +281,7 @@ class Model:
         #else:
             #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
         integral = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
+        hills = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
         #A = lil_matrix((len(self.nodes), len(self.nodes)))
         #print A
         max_density = []
@@ -282,12 +291,12 @@ class Model:
             A, sigma_in_l, sigma_in_r = self.simpleA(energy)
             #Ablock = SparseBlocks(A, self.block_sizes)
             Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-            integral = integral + integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
-            #self.writetovtk(integral.real, str(i))
+            integral = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
+            hills = vstack((hills,integral))
             #self.writetovtk(integral.real, str(i))
             i+=1
             max_density.append(integral.real.max())
-        return integral, max_density
+        return hills, max_density
 
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
@@ -311,11 +320,16 @@ class Model:
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
 
-    def selfconsistent(self):
-        from scipy import ones
+    def selfconsistent(self,E):
+        from scipy import ones, pi
+        from sparseblockslice import SparseBlocks
+        #energy = self.Egrid[50]
         initial_dens = ones((self.wafer.shape[0] * self.wafer.shape[1]))
         initial_phi = self.hartree_from_density(initial_dens)
-        density = 
+        A, sigma_in_l, sigma_in_r = self.simpleA(E)
+        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
+        density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
+        return density[4024]
 
     def summatrix(self, mat):
         from summon import matrix
