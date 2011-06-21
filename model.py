@@ -1,11 +1,12 @@
 class Model:
 
     def __init__(self, world):
-        from scipy import linspace
+        from scipy import linspace, cos, pi
         Model.canvas = world.canvas
         Model.atlas = world.atlas
         Model.hbar = world.hbar
         Model.m0 = world.m0
+        Model.kb = world.kb
 
         self.nodes = world.nodes
         self.wafer = world.wafer
@@ -15,20 +16,21 @@ class Model:
         self.eps0 = world.eps0
         self.q = world.q
         #Potential Drop over legth of device
-        self.potential_drop = [-0.01, 0.01]
-        self.a = 2e-10
+        self.potential_drop = [-0.01, 0.01]# in eV
+        self.a = 2e-10 # in meter
         #effective mass in eV real in GaAs 0.063
-        self.mass = 0.25*Model.m0
+        self.mass = 0.063*Model.m0
         self.t = (Model.hbar**2)/(2*self.mass*(self.a**2))
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        self.epsr = 12.9
-        self.kT = 0.025
+        self.epsr = 12.85
+        self.Temp = 2 #in Kelvin
+        self.kT = Model.kb * self.Temp
         self.lambdaf = 10
         self.BField = 0
         self.zplus = 1j*1e-12
-        self.Egrid = linspace(0.01,0.1,200)
-        #Efermi = 2*t*(1-scipy.cos(2*scipy.pi/lambdaf))
-        self.Efermi = 0.1
+        self.Egrid = linspace(-1.0,1.0,200) # in eV ?
+        self.Efermi = 2*self.t*(1-cos(2*pi/self.lambdaf))
+        #self.Efermi = 0.1
         self.mu = self.Efermi
         self.dE = self.Egrid[1].real-self.Egrid[0].real
         #electro-chemical potential in eV
@@ -41,8 +43,9 @@ class Model:
 
     def writetovtk(self,value,suffix=''):
         """ Input values are the serialized values of the grid, either
-        custom or naive (rectangular) serialization """
-        if value.shape[0] >1  and value.shape[1] >1:
+        custom or naive (rectangular) serialization. Also accepts
+        rectangular arrays """
+        if len(value.shape) >1:
             xdim = value.shape[1]
             ydim = value.shape[0]
             def linetowrite(value, row, column):
@@ -111,7 +114,7 @@ class Model:
             for column in range(self.wafer.shape[1]):
                 i = column+self.wafer.shape[1]*row
                 if self.wafer[row,column] == 0:
-                    H[i,i] = 100000
+                    H[i,i] = 1e8
                 elif self.wafer[row,column] >0:
                     H[i,i] = 4*self.t+self.potential_grid[row,column]
                     if row+1 == self.wafer.shape[0] or column+1 == self.wafer.shape[1]: continue
@@ -291,11 +294,14 @@ class Model:
             A, sigma_in_l, sigma_in_r = self.simpleA(energy)
             #Ablock = SparseBlocks(A, self.block_sizes)
             Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-            integral = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
+            fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
+            self.writetovtk(fncvalue.real, str(i))
+            integral = integral + fncvalue
             hills = vstack((hills,integral))
-            #self.writetovtk(integral.real, str(i))
             i+=1
+            print  i
             max_density.append(integral.real.max())
+        self.writetovtk(integral.real, 'integrated2')
         return hills, max_density
 
     def build_convolutionkernel(self):
@@ -307,7 +313,7 @@ class Model:
         for i in range(plusv_dim):
             for j in range(plush_dim):
                 if i==0 and j == 0: continue
-                kernel[i,j] = 1/norm((i,j))
+                kernel[i,j] = 1/1e-9*norm((i,j))
         self.kernel = kernel
         kernel = hstack((kernel[:,:0:-1], kernel))
         self.kernel = vstack((kernel[:0:-1,:], kernel))
@@ -315,7 +321,7 @@ class Model:
     def hartree_from_density(self, density):
         from scipy.signal import fftconvolve
         from scipy import pi
-        target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
+        target = self.a**2 *density.reshape(self.wafer.shape[0],self.wafer.shape[1])
         factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
@@ -324,12 +330,12 @@ class Model:
         from scipy import ones, pi
         from sparseblockslice import SparseBlocks
         #energy = self.Egrid[50]
-        initial_dens = ones((self.wafer.shape[0] * self.wafer.shape[1]))
+        initial_dens = 1e7 *ones((self.wafer.shape[0] * self.wafer.shape[1]))
         initial_phi = self.hartree_from_density(initial_dens)
         A, sigma_in_l, sigma_in_r = self.simpleA(E)
         Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-        density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
-        return density[4024]
+        density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a) - 2e-7
+        return density
 
     def summatrix(self, mat):
         from summon import matrix
