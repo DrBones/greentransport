@@ -313,15 +313,17 @@ class Model:
         for i in range(plusv_dim):
             for j in range(plush_dim):
                 if i==0 and j == 0: continue
-                kernel[i,j] = 1/1e-9*norm((i,j))
+                kernel[i,j] = 1/self.a*norm((i,j))
         self.kernel = kernel
         kernel = hstack((kernel[:,:0:-1], kernel))
         self.kernel = vstack((kernel[:0:-1,:], kernel))
 
     def hartree_from_density(self, density):
+        """ Somehow, a self.a**2 is missing because of the transition
+        from intgral to sum. The result has the right magnitude without though"""
         from scipy.signal import fftconvolve
         from scipy import pi
-        target = self.a**2 *density.reshape(self.wafer.shape[0],self.wafer.shape[1])
+        target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
         factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
@@ -348,3 +350,33 @@ class Model:
         viewer = matrix.MatrixViewer(m, title="Sparsity")
         viewer.show()
 
+    def naivehartree(self, density):
+        from scipy import pi
+        target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
+        factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
+
+    def naiveconv(self,source, kernel):
+        from scipy import zeros, unravel_index
+        conv = zeros((source.shape[0]))
+        for index, cell in enumerate(source):
+            d, e = unravel_index(index,(20,20))
+            res = 0
+            for row in range(20):
+                for column in range(20):
+                    res = res + cell * kernel[row +20 - e-1,column +20 - d-1]
+            conv[index] = res
+        return conv
+
+    def convkernel(self, size):
+            from scipy import zeros, hstack, vstack
+            from scipy.linalg import norm
+            plusv_dim = size
+            plush_dim = size
+            kernel = zeros((plusv_dim, plush_dim))
+            for i in range(plusv_dim):
+                for j in range(plush_dim):
+                    if i==0 and j == 0: continue
+                    kernel[i,j] = 1/norm((i,j))
+            kernel = hstack((kernel[:,:0:-1], kernel))
+            kernel = vstack((kernel[:0:-1,:], kernel))
+            return kernel
