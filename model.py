@@ -330,7 +330,7 @@ class Model:
         from scipy import ones, pi
         from sparseblockslice import SparseBlocks
         #energy = self.Egrid[50]
-        initial_dens = 1e7 *ones((self.wafer.shape[0] * self.wafer.shape[1]))
+        initial_dens = 1e14*ones((self.wafer.shape[0] * self.wafer.shape[1]))
         initial_phi = self.hartree_from_density(initial_dens)
         A, sigma_in_l, sigma_in_r = self.simpleA(E)
         Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
