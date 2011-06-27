@@ -1,6 +1,6 @@
 class World:
 
-    defaultatlas = 'wirecentralcontact100x50nopad.bmp'
+    defaultatlas = 'qpc6cellswide100x50nopad.bmp'
 
     def __init__(self, atlas=defaultatlas):
         self.atlas = atlas

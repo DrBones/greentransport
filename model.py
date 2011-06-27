@@ -17,7 +17,7 @@ class Model:
         self.q = world.q
         #Potential Drop over legth of device
         self.potential_drop = [-0.01, 0.01]# in eV
-        self.a = 2e-10 # in meter
+        self.a = 3e-9 # in meter
         #effective mass in eV real in GaAs 0.063
         self.mass = 0.063*Model.m0
         self.t = (Model.hbar**2)/(2*self.mass*(self.a**2))
@@ -28,7 +28,7 @@ class Model:
         self.lambdaf = 10
         self.BField = 0
         self.zplus = 1j*1e-12
-        self.Egrid = linspace(-1.0,1.0,200) # in eV ?
+        self.Egrid = linspace(-0.03,0.06,300) # in eV ?
         self.Efermi = 2*self.t*(1-cos(2*pi/self.lambdaf))
         #self.Efermi = 0.1
         self.mu = self.Efermi
@@ -142,20 +142,20 @@ class Model:
         """ Simple Fermifunction """
         from scipy import exp
         fermifnc = 1/(exp((E.real-mu)/self.kT)+1)
+        print fermifnc
         return fermifnc
 
     def __contact_greensfunction(self, ind_contact, contact_node, E):
         """calculates the value of the transverse mode's square at the point
         of the contact_node, essentially sin(pi)sin(pi) multiplied with
         appropriate amplitude and constats """
-        from scipy import arccos, exp, sin, pi
+        from scipy import arccos, exp, sin, pi, sqrt
         Length = (ind_contact.shape[1]-1.0)
-        #Amplitude = scipy.sqrt(1/Length)
-        Amplitude = 1
+        Amplitude = 1/sqrt(Length)
+        #Amplitude = 1
         ka = arccos(1-E.real/(2*self.t))
         Phase = exp(1j*ka)
         xi = Amplitude * sin(pi * contact_node/Length)
-        #xi = 1
         greensfunction = (xi**2) * Phase
         return greensfunction
 
@@ -272,6 +272,7 @@ class Model:
             max_density.append(integral.real.max())
         return integral, max_density
 
+    def adaptiveenergy(self)
     def simpleenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
         from scipy import pi, array
         from scipy.sparse import lil_matrix
@@ -295,14 +296,14 @@ class Model:
             #Ablock = SparseBlocks(A, self.block_sizes)
             Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
             fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
-            self.writetovtk(fncvalue.real, str(i))
+            #self.writetovtk(fncvalue.real, str(i))
             integral = integral + fncvalue
-            hills = vstack((hills,integral))
+            #hills = vstack((hills,integral))
             i+=1
             print  i
             max_density.append(integral.real.max())
-        self.writetovtk(integral.real, 'integrated2')
-        return hills, max_density
+        self.writetovtk(integral.real, 'integrated')
+        return integral, max_density
 
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
@@ -313,7 +314,7 @@ class Model:
         for i in range(plusv_dim):
             for j in range(plush_dim):
                 if i==0 and j == 0: continue
-                kernel[i,j] = 1/self.a*norm((i,j))
+                kernel[i,j] = 1/(self.a*norm((i,j)))
         self.kernel = kernel
         kernel = hstack((kernel[:,:0:-1], kernel))
         self.kernel = vstack((kernel[:0:-1,:], kernel))
@@ -335,8 +336,8 @@ class Model:
         initial_dens = 1e14*ones((self.wafer.shape[0] * self.wafer.shape[1]))
         initial_phi = self.hartree_from_density(initial_dens)
         A, sigma_in_l, sigma_in_r = self.simpleA(E)
-        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-        density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a) - 2e-7
+        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0])
+        density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
         return density
 
     def summatrix(self, mat):
@@ -349,34 +350,3 @@ class Model:
         matrix.open_matrix('newfile.txt', m, format='imat')
         viewer = matrix.MatrixViewer(m, title="Sparsity")
         viewer.show()
-
-    def naivehartree(self, density):
-        from scipy import pi
-        target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
-        factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
-
-    def naiveconv(self,source, kernel):
-        from scipy import zeros, unravel_index
-        conv = zeros((source.shape[0]))
-        for index, cell in enumerate(source):
-            d, e = unravel_index(index,(20,20))
-            res = 0
-            for row in range(20):
-                for column in range(20):
-                    res = res + cell * kernel[row +20 - e-1,column +20 - d-1]
-            conv[index] = res
-        return conv
-
-    def convkernel(self, size):
-            from scipy import zeros, hstack, vstack
-            from scipy.linalg import norm
-            plusv_dim = size
-            plush_dim = size
-            kernel = zeros((plusv_dim, plush_dim))
-            for i in range(plusv_dim):
-                for j in range(plush_dim):
-                    if i==0 and j == 0: continue
-                    kernel[i,j] = 1/norm((i,j))
-            kernel = hstack((kernel[:,:0:-1], kernel))
-            kernel = vstack((kernel[:0:-1,:], kernel))
-            return kernel
