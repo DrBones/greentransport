@@ -26,7 +26,8 @@ class Model:
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
         self.lambdaf = 10
-        self.BField = 0
+        self.BField = 1 # in Tesla, from 0-~10
+        self.Balpha = self.q * self.BField * self.a**2 / 2 * pi *self.hbar
         self.zplus = 1j*1e-12
         self.Egrid = linspace(-0.03,0.06,300) # in eV ?
         self.Efermi = 2*self.t*(1-cos(2*pi/self.lambdaf))
@@ -108,20 +109,20 @@ class Model:
 
     def simpleH(self):
         from scipy.sparse import lil_matrix, triu
-        from scipy import complex128, exp
+        from scipy import complex128, exp, pi
         H = lil_matrix((self.wafer.shape[0]*self.wafer.shape[1],self.wafer.shape[0]*self.wafer.shape[1]),dtype=complex128)
         for row in range(self.wafer.shape[0]):
             for column in range(self.wafer.shape[1]):
                 i = column+self.wafer.shape[1]*row
                 if self.wafer[row,column] == 0:
-                    H[i,i] = 1e8
+                    H[i,i] = 1e0
                 elif self.wafer[row,column] >0:
                     H[i,i] = 4*self.t+self.potential_grid[row,column]
                     if row+1 == self.wafer.shape[0] or column+1 == self.wafer.shape[1]: continue
                     if self.wafer[row,column+1] > 0 :
                         H[i,i+1] = -self.t
                     if self.wafer[row+1,column] >0 and row+1 < self.wafer.shape[0]:
-                        H[i,i+self.wafer.shape[1]] = -exp(1j*self.BField*i)*self.t
+                        H[i,i+self.wafer.shape[1]] = -exp(2 * pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t
         Hupper = triu(H, 1)
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()# might be faster
         self.H = H
@@ -272,7 +273,10 @@ class Model:
             max_density.append(integral.real.max())
         return integral, max_density
 
-    def adaptiveenergy(self)
+    def adaptiveenergy(self):
+        pass
+
+
     def simpleenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
         from scipy import pi, array
         from scipy.sparse import lil_matrix
