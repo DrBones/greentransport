@@ -8,6 +8,10 @@ class SparseBlocks(object):
             print 'Fallback default to chunks of size 1'
         else:
             self.chunksize = chunksize
+    def __len__(self):
+        length = len(self.chunksize)
+        return length
+
     def _convert_slices(self, slices):
         newslices = []
         for axslice in slices:

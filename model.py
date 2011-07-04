@@ -16,27 +16,30 @@ class Model:
         self.eps0 = world.eps0
         self.q = world.q
         #Potential Drop over legth of device
-        self.potential_drop = [-0.01, 0.01]# in eV
         self.a = 3e-9 # in meter
+        self.alpha = 20e-12 # eV m
         #effective mass in eV real in GaAs 0.063
         self.mass = 0.063*Model.m0
-        self.t = (Model.hbar**2)/(2*self.mass*(self.a**2))
+        self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
+        self.tso = self.alpha/(2 * self.a)
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
+        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
-        self.lambdaf = 10
-        self.BField = 1 # in Tesla, from 0-~10
-        self.Balpha = self.q * self.BField * self.a**2 / 2 * pi *self.hbar
+        self.lambdaf = 35 # i believe in nanometer
+        self.BField = 0 # in Tesla, from 0-~10
+        self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
-        self.Egrid = linspace(-0.03,0.06,300) # in eV ?
-        self.Efermi = 2*self.t*(1-cos(2*pi/self.lambdaf))
+        self.Efermi = 2*self.t0*(1-cos(2*pi/self.lambdaf))
+        #self.Efermi = 3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
+        self.Egrid = linspace(self.Efermi-self.t0/2,self.Efermi +self.t0/2,100) # in eV ?
         #self.Efermi = 0.1
         self.mu = self.Efermi
         self.dE = self.Egrid[1].real-self.Egrid[0].real
         #electro-chemical potential in eV
-        self.mu_l = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
-        self.mu_r = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
+        self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
+        self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
 
         self.__generate_potential_grid()
         self.grid2serialized(self.potential_grid)
@@ -99,12 +102,12 @@ class Model:
         H = lil_matrix((len(self.nodes),len(self.nodes)),dtype=complex128)
         for item in self.nodes:
             if self.nodes[item][1] != None:
-                H[self.nodes[item][0],self.nodes[item][1]] = -exp(1j*self.BField*self.nodes[item][0])*self.t
+                H[self.nodes[item][0],self.nodes[item][1]] = -exp(1j*self.BField*self.nodes[item][0])*self.t0
             else: pass
             if self.nodes[item][2] == None: continue
-            H[self.nodes[item][0],self.nodes[item][2]] = -self.t
+            H[self.nodes[item][0],self.nodes[item][2]] = -self.t0
         H = (H.tocsr() + H.tocsr().conjugate().T).tolil()# might be faster
-        H.setdiag(self.potential_serialized+4*self.t)
+        H.setdiag(self.potential_serialized+4*self.t0)
         self.H = H
 
     def simpleH(self):
@@ -115,18 +118,38 @@ class Model:
             for column in range(self.wafer.shape[1]):
                 i = column+self.wafer.shape[1]*row
                 if self.wafer[row,column] == 0:
-                    H[i,i] = 1e0
+                    H[i,i] = 1e4
                 elif self.wafer[row,column] >0:
-                    H[i,i] = 4*self.t+self.potential_grid[row,column]
-                    if row+1 == self.wafer.shape[0] or column+1 == self.wafer.shape[1]: continue
+                    H[i,i] = 4*self.t0+self.potential_grid[row,column]
+                    if column+1 == self.wafer.shape[1]: continue
                     if self.wafer[row,column+1] > 0 :
-                        H[i,i+1] = -self.t
+                        H[i,i+1] = -self.t0
+                    if row+1 == self.wafer.shape[0] or column+1 == self.wafer.shape[1]: continue
                     if self.wafer[row+1,column] >0 and row+1 < self.wafer.shape[0]:
-                        H[i,i+self.wafer.shape[1]] = -exp(2 * pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t
+                        H[i,i+self.wafer.shape[1]] = -exp(2 * pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
         Hupper = triu(H, 1)
-        H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()# might be faster
+        H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
         self.H = H
 
+    def spin_H(self):
+        from scipy.sparse import lil_matrix
+        from scipy import complex128
+        from scipy.sparse import bmat, eye
+        from sparseblockslice import SparseBlocks
+        blocks = [self.wafer.shape[1]]*self.wafer.shape[0]
+        Hblock = SparseBlocks(self.H,blocks)
+        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
+        spinH = lil_matrix((2*blocks[1], 2*blocks[1]), dtype=complex128)
+        for i,block_size in enumerate(blocks):
+            itso = 1j*self.tso*eye(block_size,block_size)
+            Tso_up = self.tso * (eye(block_size, block_size, 1) - eye(block_size,block_size, -1))
+            1/0
+            next_upperslice = bmat([[Hblock[i,i+1], -itso],[-itso,Hblock[i,i+1]]])
+            next_lowerslice = bmat([[Hblock[i+1,i], itso],[itso, Hblock[i+1,i]]])
+            nextH = bmat([[Hblock[i,i], Tso_up], [-Tso_up, Hblock[i,i]]])
+            spinH = bmat([[spinH, None],[None,nextH]])
+        spinH = bmat([[spinH, None],[None,lil_matrix((2*blocks[1], 2*blocks[1]), dtype=complex128)]])
+        return spinH
 
     def simplesigma(self, ind_contact, E):
         from scipy.sparse import lil_matrix
@@ -135,7 +158,11 @@ class Model:
         contact_node = 0
         for xypair in ind_contact.T:
             index = xypair[1] + self.wafer.shape[1]*xypair[0]
-            sigma[index, index] = - self.t * self.__contact_greensfunction(ind_contact, contact_node, E)
+            sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
+#caution, following os wrong for all other geometries than top and bottom contacts
+            if index+1 == self.canvas[0]*self.canvas[1]: break
+            sigma[index, index+1] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node+1, E)
+            sigma[index+1, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node+1, contact_node, E)
             contact_node +=1
         return sigma
 
@@ -143,10 +170,9 @@ class Model:
         """ Simple Fermifunction """
         from scipy import exp
         fermifnc = 1/(exp((E.real-mu)/self.kT)+1)
-        print fermifnc
         return fermifnc
 
-    def __contact_greensfunction(self, ind_contact, contact_node, E):
+    def __contact_greensfunction(self, ind_contact, node_i, node_j, E):
         """calculates the value of the transverse mode's square at the point
         of the contact_node, essentially sin(pi)sin(pi) multiplied with
         appropriate amplitude and constats """
@@ -154,10 +180,11 @@ class Model:
         Length = (ind_contact.shape[1]-1.0)
         Amplitude = 1/sqrt(Length)
         #Amplitude = 1
-        ka = arccos(1-E.real/(2*self.t))
+        ka = arccos(1-E.real/(2*self.t0))
         Phase = exp(1j*ka)
-        xi = Amplitude * sin(pi * contact_node/Length)
-        greensfunction = (xi**2) * Phase
+        xi_i = Amplitude * sin(pi * node_i/Length)
+        xi_j = Amplitude * sin(pi * node_j/Length)
+        greensfunction = xi_i*xi_j * Phase
         return greensfunction
 
     def build_sigma(self, ind_contact, E):
@@ -169,7 +196,7 @@ class Model:
         sigma = lil_matrix((len(self.nodes), len(self.nodes)), dtype=complex128)
         for contact_node in range(ind_contact.shape[1]):
             index = self.nodes[tuple(ind_contact.T[contact_node])][0]
-            sigma[index, index] = - self.t * self.__contact_greensfunction(ind_contact, contact_node, E)
+            sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, E)
         return sigma
 
     def build_A(self, E):
@@ -193,6 +220,7 @@ class Model:
         sigma_in_r = -2* sigma_r.imag[4950:5000, 4950:5000] * self.fermifunction(E, mu=self.mu_r)
         A = (E+self.zplus)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
+
 
     def RRGM(self,Ablock):
         """ Performs recursive algorithm (Svizhenko et. al) to calculate
@@ -254,23 +282,24 @@ class Model:
         #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
         #else:
             #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
-        integral = array([0]*len(self.nodes))
+        #integral = array([0]*len(self.nodes))
+        integral = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
         #A = lil_matrix((len(self.nodes), len(self.nodes)))
         #print A
         max_density = []
         i=0
         for energy in self.Egrid:
-            print energy
-            A, sigma_in_l, sigma_in_r = self.build_A(energy)
-            #A, sigma_in_l, sigma_in_r = self.simpleA(energy)
-            Ablock = SparseBlocks(A, self.block_sizes)
-            #Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-            integral = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
-            print integral
-            #self.simplewritetovtk(integral.real, str(i))
-            self.writetovtk(integral.real, str(i))
+            #A, sigma_in_l, sigma_in_r = self.build_A(energy)
+            A, sigma_in_l, sigma_in_r = self.simpleA(energy)
+            #Ablock = SparseBlocks(A, self.block_sizes)
+            Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
+            fncvalue = -integrand.__call__(Ablock)[0]*self.fermifunction(energy, self.mu)*self.dE/(pi*self.a)
+            self.writetovtk(fncvalue.imag, str(i))
+            summi = integral + fncvalue
             i+=1
-            max_density.append(integral.real.max())
+            max_density.append(integral.imag.min())
+            self.writetovtk(summi.imag, 'summi')
+
         return integral, max_density
 
     def adaptiveenergy(self):
@@ -294,18 +323,19 @@ class Model:
         #print A
         max_density = []
         i=0
+        print "Current Energy:     ", "Left Occupation:     ", "Right Occupation:     ", "Maximum Density:"
         for energy in self.Egrid:
             #A, sigma_in_l, sigma_in_r = self.build_A(energy)
             A, sigma_in_l, sigma_in_r = self.simpleA(energy)
             #Ablock = SparseBlocks(A, self.block_sizes)
             Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-            fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
+            fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
+            print i, energy,"            ", self.fermifunction(energy, mu=self.mu_l),"               ", self.fermifunction(energy, mu=self.mu_r),"          ", fncvalue.real.max()
             #self.writetovtk(fncvalue.real, str(i))
             integral = integral + fncvalue
             #hills = vstack((hills,integral))
             i+=1
-            print  i
-            max_density.append(integral.real.max())
+            max_density.append(fncvalue.real.max())
         self.writetovtk(integral.real, 'integrated')
         return integral, max_density
 
@@ -343,14 +373,3 @@ class Model:
         Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0])
         density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
         return density
-
-    def summatrix(self, mat):
-        from summon import matrix
-        from scipy.io import mmwrite
-        from os import system
-        mmwrite('tempmatrix', mat.real)
-        system("sed '1,2d' tempmatrix.mtx > newfile.txt")
-        m = matrix.Matrix()
-        matrix.open_matrix('newfile.txt', m, format='imat')
-        viewer = matrix.MatrixViewer(m, title="Sparsity")
-        viewer.show()
