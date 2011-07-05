@@ -28,7 +28,7 @@ class Model:
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
         self.lambdaf = 35 # i believe in nanometer
-        self.BField = 0 # in Tesla, from 0-~10
+        self.BField = 5 # in Tesla, from 0-~10
         self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
         self.Efermi = 2*self.t0*(1-cos(2*pi/self.lambdaf))
@@ -113,43 +113,54 @@ class Model:
     def simpleH(self):
         from scipy.sparse import lil_matrix, triu
         from scipy import complex128, exp, pi
-        H = lil_matrix((self.wafer.shape[0]*self.wafer.shape[1],self.wafer.shape[0]*self.wafer.shape[1]),dtype=complex128)
+        Ndim = self.wafer.shape[0]*self.wafer.shape[1]
+        ystride = self.wafer.shape[1]
+        H = lil_matrix((Ndim,Ndim),dtype=complex128)
         for row in range(self.wafer.shape[0]):
             for column in range(self.wafer.shape[1]):
-                i = column+self.wafer.shape[1]*row
+                i = column+ystride*row
                 if self.wafer[row,column] == 0:
                     H[i,i] = 1e4
                 elif self.wafer[row,column] >0:
                     H[i,i] = 4*self.t0+self.potential_grid[row,column]
-                    if column+1 == self.wafer.shape[1]: continue
-                    if self.wafer[row,column+1] > 0 :
-                        H[i,i+1] = -self.t0
-                    if row+1 == self.wafer.shape[0] or column+1 == self.wafer.shape[1]: continue
-                    if self.wafer[row+1,column] >0 and row+1 < self.wafer.shape[0]:
-                        H[i,i+self.wafer.shape[1]] = -exp(2 * pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
+                    if column+1 < self.wafer.shape[1]:
+                        if self.wafer[row,column+1] > 0 :
+                            H[i,i+1] = -self.t0
+                    if row+1 == self.wafer.shape[0]: continue
+                    if self.wafer[row+1,column] >0:
+                        H[i,i+ystride] = -exp(2 * pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
         Hupper = triu(H, 1)
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
         self.H = H
 
-    def spin_H(self):
-        from scipy.sparse import lil_matrix
-        from scipy import complex128
-        from scipy.sparse import bmat, eye
-        from sparseblockslice import SparseBlocks
-        blocks = [self.wafer.shape[1]]*self.wafer.shape[0]
-        Hblock = SparseBlocks(self.H,blocks)
-        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
-        spinH = lil_matrix((2*blocks[1], 2*blocks[1]), dtype=complex128)
-        for i,block_size in enumerate(blocks):
-            itso = 1j*self.tso*eye(block_size,block_size)
-            Tso_up = self.tso * (eye(block_size, block_size, 1) - eye(block_size,block_size, -1))
-            1/0
-            next_upperslice = bmat([[Hblock[i,i+1], -itso],[-itso,Hblock[i,i+1]]])
-            next_lowerslice = bmat([[Hblock[i+1,i], itso],[itso, Hblock[i+1,i]]])
-            nextH = bmat([[Hblock[i,i], Tso_up], [-Tso_up, Hblock[i,i]]])
-            spinH = bmat([[spinH, None],[None,nextH]])
-        spinH = bmat([[spinH, None],[None,lil_matrix((2*blocks[1], 2*blocks[1]), dtype=complex128)]])
-        return spinH
+    def spinH(self):
+        from scipy.sparse import lil_matrix, triu
+        from scipy import complex128, exp, pi
+        Ndim = 2*self.wafer.shape[0]*self.wafer.shape[1]
+        ystride = self.wafer.shape[1]
+        H = lil_matrix((Ndim,Ndim),dtype=complex128)
+        multi = 0
+        for row in range(self.wafer.shape[0]):
+            for column in range(self.wafer.shape[1]):
+                i = column+ystride*row+multi*ystride
+                if self.wafer[row,column] == 0:
+                    H[i,i] = H[i+ystride,i+ystride] =  1e4
+                elif self.wafer[row,column] >0:
+                    H[i,i] = H[i+ystride,i+ystride] = 4*self.t0+self.potential_grid[row,column]
+                    if column+1 < self.wafer.shape[1]:
+                        if self.wafer[row,column+1] > 0 :
+                            H[i,i+1] = H[i+ystride,i+1+ystride] = -self.t0
+                            H[i,i+1+ystride] = self.tso
+                            H[i+1,i+ystride] = -self.tso
+                    if row+1 == self.wafer.shape[0]: continue
+                    if self.wafer[row+1,column] >0:
+                        H[i,i+2*ystride] = H[i+ystride,i+ystride+2*ystride] = -exp(2 *
+                                           pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
+                        H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
+            multi +=1
+        Hupper = triu(H, 1)
+        H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
+        self.H = H
 
     def simplesigma(self, ind_contact, E):
         from scipy.sparse import lil_matrix
@@ -159,10 +170,10 @@ class Model:
         for xypair in ind_contact.T:
             index = xypair[1] + self.wafer.shape[1]*xypair[0]
             sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
-#caution, following os wrong for all other geometries than top and bottom contacts
-            if index+1 == self.canvas[0]*self.canvas[1]: break
-            sigma[index, index+1] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node+1, E)
-            sigma[index+1, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node+1, contact_node, E)
+#caution, following is wrong for all other geometries than top and bottom contacts
+            #if index+1 == self.canvas[0]*self.canvas[1]: break
+            #sigma[index, index+1] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node+1, E)
+            #sigma[index+1, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node+1, contact_node, E)
             contact_node +=1
         return sigma
 
@@ -210,6 +221,20 @@ class Model:
         A = (E+self.zplus)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
+    def spinsigma(self, ind_contact, E):
+        from scipy.sparse import lil_matrix
+        from scipy import complex128
+        ystride = self.wafer.shape[1]
+        Ndim = self.canvas[0]*self.canvas[1]
+        sigma = lil_matrix((2*Ndim,2*Ndim), dtype=complex128)
+        contact_node = 0
+        for xypair in ind_contact.T:
+            index = xypair[1] + self.wafer.shape[1]*xypair[0]
+            sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
+            sigma[index+ystride, index+ystride] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
+            contact_node +=1
+        return sigma
+
     def simpleA(self, E):
         from scipy.sparse import eye
         from scipy import complex128
@@ -219,6 +244,17 @@ class Model:
         sigma_in_l = -2* sigma_l.imag[0:50, 0:50] * self.fermifunction(E, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[4950:5000, 4950:5000] * self.fermifunction(E, mu=self.mu_r)
         A = (E+self.zplus)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        return A, sigma_in_l, sigma_in_r
+
+    def spinA(self,E):
+        from scipy.sparse import eye
+        from scipy import complex128
+        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
+        sigma_l = self.spinsigma(self.contacts[0],E - self.potential_drop[0])
+        sigma_r =self.spinsigma(self.contacts[1], E - self.potential_drop[1])
+        sigma_in_l = -2* sigma_l.imag[0:100, 0:100] * self.fermifunction(E, mu=self.mu_l)
+        sigma_in_r = -2* sigma_r.imag[9900:10000, 9900:10000] * self.fermifunction(E, mu=self.mu_r)
+        A = (E+self.zplus)*eye(2*number_of_nodes,2*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
 
@@ -306,7 +342,7 @@ class Model:
         pass
 
 
-    def simpleenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
+    def simpleenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None, mode='normal'):
         from scipy import pi, array
         from scipy.sparse import lil_matrix
         from sparseblockslice import SparseBlocks
@@ -321,6 +357,10 @@ class Model:
         hills = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
         #A = lil_matrix((len(self.nodes), len(self.nodes)))
         #print A
+        if mode == 'normal':
+            multiplier = 1
+        elif mode == 'spin':
+            multiplier = 2
         max_density = []
         i=0
         print "Current Energy:     ", "Left Occupation:     ", "Right Occupation:     ", "Maximum Density:"
@@ -328,7 +368,7 @@ class Model:
             #A, sigma_in_l, sigma_in_r = self.build_A(energy)
             A, sigma_in_l, sigma_in_r = self.simpleA(energy)
             #Ablock = SparseBlocks(A, self.block_sizes)
-            Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
+            Ablock = SparseBlocks(A,[self.wafer.shape[1]*multiplier]*self.wafer.shape[0] )
             fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
             print i, energy,"            ", self.fermifunction(energy, mu=self.mu_l),"               ", self.fermifunction(energy, mu=self.mu_r),"          ", fncvalue.real.max()
             #self.writetovtk(fncvalue.real, str(i))
