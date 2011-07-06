@@ -13,6 +13,7 @@ from world import World
 from model import Model
 from sparseblockslice import SparseBlocks
 import spy as s
+from io import writeVTK
 def main():
     global device, model
     device = World()
@@ -21,7 +22,7 @@ def main():
 
 def alt():
     global smodel, sdevice
-    sdevice = World('wire100x50nopad.bmp')
+    sdevice = World('canvas/wire100x50nopad.bmp')
     smodel = Model(sdevice)
     smodel.block_sizes = [1]*smodel.wafer.shape[0]
     smodel.simpleH()

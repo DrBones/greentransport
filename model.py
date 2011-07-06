@@ -28,7 +28,7 @@ class Model:
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
         self.lambdaf = 35 # i believe in nanometer
-        self.BField = 5 # in Tesla, from 0-~10
+        self.BField = 0 # in Tesla, from 0-~10
         self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
         self.Efermi = 2*self.t0*(1-cos(2*pi/self.lambdaf))
@@ -45,38 +45,53 @@ class Model:
         self.grid2serialized(self.potential_grid)
         #self.__build_H()
 
-    def writetovtk(self,value,suffix=''):
+    def writetovtk(self,value,suffix='', mode='normal'):
         """ Input values are the serialized values of the grid, either
         custom or naive (rectangular) serialization. Also accepts
         rectangular arrays """
-        if len(value.shape) >1:
-            xdim = value.shape[1]
-            ydim = value.shape[0]
-            def linetowrite(value, row, column):
-                return file.write(str(value[row,column]) + "\n")
+        if value.ndim >1:
+            if mode=='normal':
+                xdim = value.shape[1]
+                ydim = value.shape[0]
+                def linetowrite(value, row, column):
+                    return file.write(str(value[row,column]) + "\n")
+            elif mode=='spin':
+                xdim = value.shape[1]
+                ydim = value.shape[0]
+                def linetowrite(value, row, column):
+                    return file.write(str(value[row,column]) + "\n")
+
         else:
-            xdim = self.wafer.shape[1]
-            ydim = self.wafer.shape[0]
+            ydim = self.wafer.shape[1]
+            xdim = self.wafer.shape[0]
             if len(value) == xdim*ydim:
-                value = value.reshape(ydim, xdim)
-                def linetowrite(value,x, y):
-                    return file.write(str(value[x,y]) + "\n")
+                if mode=='normal':
+                    value = value.reshape(xdim, ydim)
+                    def linetowrite(value,x, y):
+                        return file.write(str(value[x,y]) + "\n")
+                elif mode=='spin':
+                    value = value.reshape(xdim, ydim)
+                    def linetowrite(value,x, y):
+                        return file.write(str(value[x,y]) + "\n")
+
             else:
                 def linetowrite(value,x, y):
                     return file.write(str(value[self.nodes[x_pixel,y_pixel][0]]) + "\n")
         header = []
         header.append("# vtk DataFile Version 2.0\nVTK Data of Device\nASCII\nDATASET STRUCTURED_POINTS\n")
-        header.append("DIMENSIONS {0} {1} 1".format(xdim, ydim))
+        header.append("DIMENSIONS {0} {1} 1".format(ydim, xdim))
         header.append("\nSPACING 1 1 1\nORIGIN 0 0 0\nPOINT_DATA {0}".format(xdim * ydim))
         header.append("\nSCALARS EDensity double 1\nLOOKUP_TABLE default\n")
         with open(Model.atlas + suffix + '.vtk', 'w') as file:
             for line in header:
                 file.write(line)
-            for x_pixel in range(ydim):
-                for y_pixel in range(xdim):
+            for x_pixel in range(xdim):
+                for y_pixel in range(ydim):
                     try:
+                        print x_pixel, y_pixel
                         linetowrite(value,x_pixel, y_pixel)
                     except KeyError:
+                        print 'Error: Index (',x_pixel,',',y_pixel,') not in array'
                         file.write('0\n')
 
     def __generate_potential_grid(self):
@@ -413,3 +428,19 @@ class Model:
         Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0])
         density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
         return density
+
+    def cells_from_points(self, array):
+        from scipy.ndimage.interpolation import geometric_transform
+        def shift_func(output_coords):
+            return (output_coords[0] - 0.5, output_coords[1] - 0.5)
+        cells = geometric_transform(array, shift_func, output_shape=(array.shape[0]-1,array.shape[1]-1))
+        return cells
+
+    def setup(self):
+        from sparseblockslice import SparseBlocks
+        from scipy import pi
+        energy = 0.1
+        A, sigma_in_l, sigma_in_r = self.simpleA(energy)
+        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
+        fncvalue = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE*1e50/(pi*self.a**2)
+        return fncvalue
