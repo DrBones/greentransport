@@ -24,6 +24,7 @@ class Model:
         self.tso = self.alpha/(2 * self.a)
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
         self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
+        #self.potential_drop = [0,0]
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
@@ -31,9 +32,10 @@ class Model:
         self.BField = 0 # in Tesla, from 0-~10
         self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
-        self.Efermi = 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        #self.Efermi = 3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        self.Egrid = linspace(self.Efermi-self.t0/2,self.Efermi +self.t0/2,100) # in eV ?
+        #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
+        self.band_bottom = -4*self.t0
+        self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
+        self.Egrid = linspace(self.Efermi-self.t0/2,self.Efermi +self.t0/2,100)+self.zplus # in eV ?
         #self.Efermi = 0.1
         self.mu = self.Efermi
         self.dE = self.Egrid[1].real-self.Egrid[0].real
@@ -143,7 +145,7 @@ class Model:
         Length = (ind_contact.shape[1]-1.0)
         Amplitude = 1/sqrt(Length)
         #Amplitude = 1
-        ka = arccos(1-E.real/(2*self.t0))
+        ka = arccos(1-(E-self.band_bottom)/(2*self.t0))
         Phase = exp(1j*ka)
         xi_i = Amplitude * sin(pi * node_i/Length)
         xi_j = Amplitude * sin(pi * node_j/Length)
@@ -170,7 +172,7 @@ class Model:
         sigma_r =self.build_sigma(self.contacts[1], E - self.potential_drop[1])
         sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0],0:self.block_sizes[0]] * self.fermifunction(E, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E, mu=self.mu_r)
-        A = (E+self.zplus)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     def simplesigma(self, ind_contact, E):
@@ -215,7 +217,7 @@ class Model:
         sigma_r =self.simplesigma(self.contacts[1], E - self.potential_drop[1])
         sigma_in_l = -2* sigma_l.imag[0:50, 0:50] * self.fermifunction(E, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[4950:5000, 4950:5000] * self.fermifunction(E, mu=self.mu_r)
-        A = (E+self.zplus)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     def spinA(self,E, mode='normal'):
@@ -230,7 +232,7 @@ class Model:
         sigma_r =self.spinsigma(self.contacts[1], E - self.potential_drop[1],mode)
         sigma_in_l = -2* sigma_l.imag[0:multiplier*50, 0:multiplier*50] * self.fermifunction(E, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[multiplier*4950:multiplier*5000, multiplier*4950:multiplier*5000] * self.fermifunction(E, mu=self.mu_r)
-        A = (E+self.zplus)*eye(multiplier*number_of_nodes,multiplier*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        A = (E)*eye(multiplier*number_of_nodes,multiplier*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
 
