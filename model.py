@@ -23,8 +23,8 @@ class Model:
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
         self.tso = self.alpha/(2 * self.a)
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
-        #self.potential_drop = [0,0]
+        #self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
+        self.potential_drop = [0,0]
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
@@ -32,11 +32,12 @@ class Model:
         self.BField = 0 # in Tesla, from 0-~10
         self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
-        #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.band_bottom = -4*self.t0
-        self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        self.Egrid = linspace(self.Efermi-self.t0/2,self.Efermi +self.t0/2,100)+self.zplus # in eV ?
+        self.band_bottom = 0
+        self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
+        #self.band_bottom = -4*self.t0
         #self.Efermi = 0.1
+        #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
+        self.Egrid = linspace(self.Efermi-self.t0/2,self.Efermi +self.t0/2,100)+self.zplus # in eV ?
         self.mu = self.Efermi
         self.dE = self.Egrid[1].real-self.Egrid[0].real
         #electro-chemical potential in eV
@@ -357,6 +358,18 @@ class Model:
         #self.writetovtk(integral.real, 'integrated')
         return integral, max_density
 
+    def dorgm(self,name,energy, mode='normal'):
+        from sparseblockslice import SparseBlocks
+        from io import writeVTK
+        multiplier = 1
+        #energy = self.Efermi
+        A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
+        Ablock = SparseBlocks(A,[self.wafer.shape[1]*multiplier]*self.wafer.shape[0] )
+        densi, temp1, temp2 = self.RRGM(Ablock)
+        dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
+        writeVTK(name, 49, 99, pointData={"Density":dens})
+        return dens
+
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
         from scipy.linalg import norm
@@ -405,5 +418,5 @@ class Model:
         energy = self.Efermi
         A, sigma_in_l, sigma_in_r = self.simpleA(energy)
         Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-        fncvalue = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE*1e50/(pi*self.a**2)
+        fncvalue = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
         return fncvalue
