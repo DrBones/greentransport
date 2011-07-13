@@ -24,10 +24,10 @@ def alt():
     global smodel, sdevice
     sdevice = World('canvas/wire100x50nopad.bmp')
     smodel = Model(sdevice)
-    smodel.block_sizes = [1]*smodel.wafer.shape[0]
+    smodel.block_sizes = [smodel.wafer.shape[1]]*smodel.wafer.shape[0]
     smodel.simpleH()
     print 'Hamiltonian shape = ', smodel.H.shape
-    print 'SimpleSigma shape = ', smodel.simplesigma(smodel.contacts[0], 0.2).shape
+    print 'SpinSigma shape (Mode: Normal) = ', smodel.spinsigma(smodel.contacts[0], 0.2).shape
     smodel.build_convolutionkernel()
 
     #smodel.simpleenergyintegrate(smodel.LRGM)

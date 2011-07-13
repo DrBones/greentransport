@@ -23,7 +23,7 @@ class Model:
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
         self.tso = self.alpha/(2 * self.a)
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        #self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
+        #self.potential_drop = [0.1*self.t0/2, -0.1* self.t0/2]# in eV
         self.potential_drop = [0,0]
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
@@ -32,12 +32,12 @@ class Model:
         self.BField = 0 # in Tesla, from 0-~10
         self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
-        self.band_bottom = 0
+        #self.band_bottom = 0
+        self.band_bottom = -4*self.t0
         self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        #self.band_bottom = -4*self.t0
         #self.Efermi = 0.1
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        self.Egrid = linspace(self.Efermi-self.t0/2,self.Efermi +self.t0/2,100)+self.zplus # in eV ?
+        self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
         self.dE = self.Egrid[1].real-self.Egrid[0].real
         #electro-chemical potential in eV
@@ -143,14 +143,15 @@ class Model:
         of the contact_node, essentially sin(pi)sin(pi) multiplied with
         appropriate amplitude and constats """
         from scipy import arccos, exp, sin, pi, sqrt
-        Length = (ind_contact.shape[1]-1.0)
-        Amplitude = 1/sqrt(Length)
+        length = (ind_contact.shape[1]-1.0)
+        amplitude = 1/sqrt(length)
+        mode_energy = self.hbar**2 * pi**2/(2*self.mass * (length*self.a)**2)
         #Amplitude = 1
-        ka = arccos(1-(E-self.band_bottom)/(2*self.t0))
+        ka = arccos(1-(E+mode_energy-self.band_bottom)/(2*self.t0))
         Phase = exp(1j*ka)
-        xi_i = Amplitude * sin(pi * node_i/Length)
-        xi_j = Amplitude * sin(pi * node_j/Length)
-        greensfunction = xi_i*xi_j * Phase
+        xi_i = amplitude * sin(pi * node_i/length)
+        xi_j = amplitude * sin(pi * node_j/length)
+        greensfunction =xi_j * xi_i *  Phase
         return greensfunction
 
     def build_sigma(self, ind_contact, E):
@@ -176,31 +177,16 @@ class Model:
         A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
-    def simplesigma(self, ind_contact, E):
-        from scipy.sparse import lil_matrix
-        from scipy import complex128
-        sigma = lil_matrix((self.canvas[0]*self.canvas[1],self.canvas[0]*self.canvas[1]), dtype=complex128)
-        contact_node = 0
-        for xypair in ind_contact.T:
-            index = xypair[1] + self.wafer.shape[1]*xypair[0]
-            sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
-#caution, following is wrong for all other geometries than top and bottom contacts
-            #if index+1 == self.canvas[0]*self.canvas[1]: break
-            #sigma[index, index+1] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node+1, E)
-            #sigma[index+1, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node+1, contact_node, E)
-            contact_node +=1
-        return sigma
-
     def spinsigma(self, ind_contact, E,mode='normal'):
         from scipy.sparse import lil_matrix
         from scipy import complex128
         if mode == 'normal':
-            multiplier = 1
+            multi = 1
         elif mode == 'spin':
-            multiplier = 2
+            multi = 2
         ystride = self.wafer.shape[1]
         Ndim = self.canvas[0]*self.canvas[1]
-        sigma = lil_matrix((multiplier*Ndim,multiplier*Ndim), dtype=complex128)
+        sigma = lil_matrix((multi*Ndim,multi*Ndim), dtype=complex128)
         contact_node = 0
         for xypair in ind_contact.T:
             index = xypair[1] + ystride*xypair[0]
@@ -225,15 +211,18 @@ class Model:
         from scipy.sparse import eye
         from scipy import complex128
         if mode == 'normal':
-            multiplier = 1
+            multi = 1
         elif mode == 'spin':
-            multiplier = 2
+            multi = 2
         number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
         sigma_l = self.spinsigma(self.contacts[0],E - self.potential_drop[0],mode)
         sigma_r =self.spinsigma(self.contacts[1], E - self.potential_drop[1],mode)
-        sigma_in_l = -2* sigma_l.imag[0:multiplier*50, 0:multiplier*50] * self.fermifunction(E, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[multiplier*4950:multiplier*5000, multiplier*4950:multiplier*5000] * self.fermifunction(E, mu=self.mu_r)
-        A = (E)*eye(multiplier*number_of_nodes,multiplier*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        print sigma_l
+        start = (number_of_nodes-self.wafer.shape[1])
+        end = number_of_nodes
+        sigma_in_l = -2* sigma_l.imag[0:multi*self.wafer.shape[1], 0:multi*self.wafer.shape[1]] * self.fermifunction(E, mu=self.mu_l)
+        sigma_in_r = -2* sigma_r.imag[multi*start:multi*end,start:multi*end] * self.fermifunction(E, mu=self.mu_r)
+        A = (E+self.band_bottom)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
 
