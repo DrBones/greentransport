@@ -26,6 +26,7 @@ def alt():
     smodel = Model(sdevice)
     smodel.block_sizes = [smodel.wafer.shape[1]]*smodel.wafer.shape[0]
     smodel.simpleH()
+    smodel.eigensigma()
     print 'Hamiltonian shape = ', smodel.H.shape
     print 'SpinSigma shape (Mode: Normal) = ', smodel.spinsigma(smodel.contacts[0], 0.2).shape
     smodel.build_convolutionkernel()

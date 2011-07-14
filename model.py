@@ -34,8 +34,8 @@ class Model:
         self.zplus = 1j*1e-12
         #self.band_bottom = 0
         self.band_bottom = -4*self.t0
-        self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        #self.Efermi = 0.1
+        #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
+        self.Efermi = 0
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
         self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
@@ -165,6 +165,27 @@ class Model:
             index = self.nodes[tuple(ind_contact.T[contact_node])][0]
             sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, E)
         return sigma
+
+    def eigensigma(self):
+        from scipy.linalg import eig
+        from scipy.sparse import lil_matrix
+        #from scipy.sparse.linalg import eigen
+        transverseH = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
+        transverseH.setdiag([2*self.t0]*self.wafer.shape[1])
+        transverseH.setdiag([-self.t0]*self.wafer.shape[1],1)
+        transverseH.setdiag([-self.t0]*self.wafer.shape[1],-1)
+        #from pudb import set_trace; set_trace()
+        v,d = eig(transverseH.todense())
+        if v.max() > self.Efermi-self.band_bottom:
+            print 'mode energy larger than fermi energy, please adjust'
+        self.v = v
+        self.d = d
+
+    def numsigma(self, E):
+        from scipy import sqrt,exp,asarray,dot,diag
+        dd=  diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v)/self.t0)))
+        numsigma = asarray(dot(dot(self.d,dd),self.d.T))
+        return numsigma
 
     def build_A(self, E):
         from scipy.sparse import eye
@@ -356,6 +377,29 @@ class Model:
         Ablock = SparseBlocks(A,[self.wafer.shape[1]*multiplier]*self.wafer.shape[0] )
         densi, temp1, temp2 = self.RRGM(Ablock)
         dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
+        writeVTK(name, 49, 99, pointData={"Density":dens})
+        return dens
+
+    def numrgm(self,name,energy,mode='normal'):
+        from sparseblockslice import SparseBlocks
+        from io import writeVTK
+        from scipy.sparse import eye, lil_matrix
+        from scipy import complex128
+        multi = 1
+        Ndim = self.wafer.shape[0]*self.wafer.shape[1]
+        ystride = self.wafer.shape[1]
+        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
+        start = (number_of_nodes-self.wafer.shape[1])
+        end = number_of_nodes
+        sigma_l = lil_matrix((Ndim,Ndim),dtype=complex128)
+        sigma_r = lil_matrix((Ndim,Ndim),dtype=complex128)
+        sigma_l[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = self.numsigma(energy-self.potential_drop[0])
+        sigma_r[multi*start:multi*end,start:multi*end] = self.numsigma(energy-self.potential_drop[-1])
+        A = (energy)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        #energy = self.Efermi
+        Ablock = SparseBlocks(A,self.block_sizes )
+        densi, temp1, temp2 = self.RRGM(Ablock)
+        dens = -densi.imag/(self.a**2)#*self.fermifunction(energy, self.mu)
         writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
 
