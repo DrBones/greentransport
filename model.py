@@ -169,6 +169,7 @@ class Model:
     def eigensigma(self):
         from scipy.linalg import eig
         from scipy.sparse import lil_matrix
+        from scipy import argsort
         #from scipy.sparse.linalg import eigen
         transverseH = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
         transverseH.setdiag([2*self.t0]*self.wafer.shape[1])
@@ -178,13 +179,18 @@ class Model:
         v,d = eig(transverseH.todense())
         if v.max() > self.Efermi-self.band_bottom:
             print 'mode energy larger than fermi energy, please adjust'
+        ndx = argsort(v)
+        d=d[:,ndx]
+        v=v[ndx]
         self.v = v
         self.d = d
 
-    def numsigma(self, E):
+    def numsigma(self, E,num_modes='all'):
         from scipy import sqrt,exp,asarray,dot,diag
-        dd=  diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v)/self.t0)))
-        numsigma = asarray(dot(dot(self.d,dd),self.d.T))
+        if num_modes == 'all':
+            num_modes = self.wafer.shape[1]
+        dd=  diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v[:num_modes])/self.t0)))
+        numsigma = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         return numsigma
 
     def build_A(self, E):
@@ -380,7 +386,7 @@ class Model:
         writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
 
-    def numrgm(self,name,energy,mode='normal'):
+    def numrgm(self,name,energy,num_modes='all',mode='normal'):
         from sparseblockslice import SparseBlocks
         from io import writeVTK
         from scipy.sparse import eye, lil_matrix
@@ -393,8 +399,8 @@ class Model:
         end = number_of_nodes
         sigma_l = lil_matrix((Ndim,Ndim),dtype=complex128)
         sigma_r = lil_matrix((Ndim,Ndim),dtype=complex128)
-        sigma_l[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = self.numsigma(energy-self.potential_drop[0])
-        sigma_r[multi*start:multi*end,start:multi*end] = self.numsigma(energy-self.potential_drop[-1])
+        sigma_l[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = self.numsigma(energy-self.potential_drop[0],num_modes)
+        sigma_r[multi*start:multi*end,start:multi*end] = self.numsigma(energy-self.potential_drop[-1],num_modes)
         A = (energy)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         #energy = self.Efermi
         Ablock = SparseBlocks(A,self.block_sizes )
