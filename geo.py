@@ -38,7 +38,7 @@ def sweep(instance):
     from evtk.vtk import VtkGroup
     g = VtkGroup("./group")
     i=0
-    for energy_multi in linspace(0.001,0.1,500):
+    for energy_multi in linspace(-0.001,0.1,500):
         instance.numrgm('output/huzzah'+str(i), energy_multi*instance.t0,2)
         g.addFile(filepath='output/huzzah'+str(i)+'.vtr', sim_time=i)
         i+=1

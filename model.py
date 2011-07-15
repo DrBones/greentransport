@@ -405,7 +405,7 @@ class Model:
         #energy = self.Efermi
         Ablock = SparseBlocks(A,self.block_sizes )
         densi, temp1, temp2 = self.RRGM(Ablock)
-        dens = -densi.imag/(self.a**2)#*self.fermifunction(energy, self.mu)
+        dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
 
