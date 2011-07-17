@@ -22,7 +22,7 @@ def main():
 
 def alt():
     global smodel, sdevice
-    sdevice = World('canvas/wire100x50nopad.bmp')
+    sdevice = World('canvas/wire100x50spinorbit.bmp')
     smodel = Model(sdevice)
     smodel.block_sizes = [smodel.wafer.shape[1]]*smodel.wafer.shape[0]
     smodel.simpleH()

@@ -21,7 +21,7 @@ class World:
         img = Image.open(self.atlas)
         arr = asarray(img)
         contacts = []
-        contact_shades = [149, 179, 209, 239]
+        contact_shades = [119, 149, 179, 209]
         for shade in contact_shades:
             a = array(where(arr == shade))
             if a.shape[1] == 0: continue

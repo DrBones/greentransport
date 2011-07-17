@@ -119,13 +119,15 @@ class Model:
                     if column+1 < self.wafer.shape[1]:
                         if self.wafer[row,column+1] > 0 :
                             H[i,i+1] = H[i+ystride,i+1+ystride] = -self.t0
-                            H[i,i+1+ystride] = self.tso
-                            H[i+1,i+ystride] = -self.tso
+                            if self.wafer[row,column+1] == 239:
+                                H[i,i+1+ystride] = self.tso
+                                H[i+1,i+ystride] = -self.tso
                     if row+1 == self.wafer.shape[0]: continue
                     if self.wafer[row+1,column] >0:
                         H[i,i+2*ystride] = H[i+ystride,i+ystride+2*ystride] = -exp(2 *
                                            pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
-                        H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
+                        if self.wafer[row,column] == 239 and self.wafer[row+1,column] == 239:
+                            H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
             multi +=1
         Hupper = triu(H, 1)
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
@@ -223,17 +225,6 @@ class Model:
             contact_node +=1
         return sigma
 
-    def simpleA(self, E):
-        from scipy.sparse import eye
-        from scipy import complex128
-        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
-        sigma_l = self.simplesigma(self.contacts[0],E - self.potential_drop[0])
-        sigma_r =self.simplesigma(self.contacts[1], E - self.potential_drop[1])
-        sigma_in_l = -2* sigma_l.imag[0:50, 0:50] * self.fermifunction(E, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[4950:5000, 4950:5000] * self.fermifunction(E, mu=self.mu_r)
-        A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
-        return A, sigma_in_l, sigma_in_r
-
     def spinA(self,E, mode='normal'):
         from scipy.sparse import eye
         from scipy import complex128
@@ -241,67 +232,17 @@ class Model:
             multi = 1
         elif mode == 'spin':
             multi = 2
-        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
+        number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
         sigma_l = self.spinsigma(self.contacts[0],E - self.potential_drop[0],mode)
         sigma_r =self.spinsigma(self.contacts[1], E - self.potential_drop[1],mode)
         print sigma_l
         start = (number_of_nodes-self.wafer.shape[1])
         end = number_of_nodes
-        sigma_in_l = -2* sigma_l.imag[0:multi*self.wafer.shape[1], 0:multi*self.wafer.shape[1]] * self.fermifunction(E, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[multi*start:multi*end,start:multi*end] * self.fermifunction(E, mu=self.mu_r)
+        sigma_in_l = -2* sigma_l.imag[0:multi*self.block_sizes[1], 0:multi*self.block_sizes[1]] * self.fermifunction(E, mu=self.mu_l)
+        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*multi:,-self.block_sizes[-1]*multi:] * self.fermifunction(E, mu=self.mu_r)
         A = (E+self.band_bottom)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
-
-    def RRGM(self,Ablock):
-        """ Performs recursive algorithm (Svizhenko et. al) to calculate
-        the retarded green's function, uses views on A, i.e. the block
-        matrices of A, by Ablock """
-        from scipy import array, hstack
-        number_of_blocks = len(self.block_sizes)
-        grl = [Ablock[0,0].todense().I]
-        prev_greensfnc = grl[0]
-        for i in range(1,number_of_blocks):
-            prev_greensfnc = (Ablock[i,i]-Ablock[i, i-1] * prev_greensfnc * Ablock[i-1,i]).I
-            grl.append(prev_greensfnc)
-        Gr = {}
-        Gr[number_of_blocks-1,number_of_blocks-1] = grl[-1]
-        rev_iterator = reversed(range(1,number_of_blocks))
-        for i in rev_iterator:
-            Gr[i, i-1] = -Gr[i,i] * Ablock[i,i-1] * grl[i-1]
-            Gr[i-1, i] = -grl[i-1] * Ablock[i-1,i] * Gr[i,i]
-            Gr[i-1, i-1] = grl[i-1]-grl[i-1] * Ablock[i-1,i] * Gr[i, i-1]
-        green_diag = array([])
-        for i in range(number_of_blocks):
-            diag = array(Gr[i,i].diagonal()).reshape(-1)
-            green_diag = hstack((green_diag, diag))
-        return green_diag, grl, Gr
-
-    def LRGM(self, Ablock, sigma_in_l, sigma_in_r):
-        """ Performs recursive algorithm (Svizhenko et.al) to calculate
-        lesser green's function by the use of the diagonal and offdiagonal
-        matrix-elements of the retarded green's function """
-        from scipy import array, hstack
-        ignored, grl, Gr = self.RRGM(Ablock)
-        number_of_blocks = len(self.block_sizes)
-        gll = [grl[0] * sigma_in_l * grl[0].getH()]
-        #len(block)-1 equals N-2 because of pythons way of building the range exclusive the endpoint
-        for i in range(1,number_of_blocks-1):
-            prev_lesser_greenfnc = grl[i] * (Ablock[i,i-1] * gll[i-1] * Ablock[i,i-1].getH()) * grl[i].getH()
-            gll.append(prev_lesser_greenfnc)
-        #N-1 step extra, belongs to for loop
-        i +=1
-        gll.append(grl[i] * (sigma_in_r + Ablock[i,i-1] * gll[i-1] * Ablock[i-1,i].conj()) * grl[i].getH())
-        Gl = {}
-        Gl[number_of_blocks-1,number_of_blocks-1] = gll[-1]
-        for i in reversed(range(1,number_of_blocks)):
-            Gl[i,i-1] = -Gr[i,i] * Ablock[i,i-1] * gll[i-1] - Gl[i,i] * Ablock[i-1,i].getH() * grl[i-1].getH()
-            Gl[i-1,i-1] = (gll[i-1] + grl[i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i-1,i].getH()) * grl[i-1].getH() - (gll[i-1] * Ablock[i,i-1].getH() * Gr[i-1,i].getH() + Gr[i-1,i] * Ablock[i,i-1] * gll[i-1]))
-        less_green_diag = array([])
-        for i in range(number_of_blocks):
-            less_diag = array(Gl[i,i].diagonal()).reshape(-1)
-            less_green_diag = hstack((less_green_diag, less_diag))
-        return less_green_diag
 
     def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
         from scipy import pi, array
@@ -335,7 +276,6 @@ class Model:
 
     def adaptiveenergy(self):
         pass
-
 
     def spinenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None, mode='normal'):
         from scipy import pi, array
