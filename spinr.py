@@ -6,14 +6,14 @@ The X-axis is the row Y-Axis the column, X=Down; Y=Right
 """
 import scipy
 #import matplotlib.pyplot as plt
-import time
-import scipy.linalg as sl
+#import time
+#import scipy.linalg as sl
 scipy.set_printoptions(precision=3,suppress=True)
 from world import World
 from model import Model
-from sparseblockslice import SparseBlocks
-import spy as s
-from io import writeVTK
+#from sparseblockslice import SparseBlocks
+from aux import spy as sspy
+#from io import writeVTK
 def main():
     global device, model
     device = World()
@@ -22,13 +22,14 @@ def main():
 
 def alt():
     global smodel, sdevice
+    from scipy import asarray
     sdevice = World('canvas/wire100x50spinorbit.bmp')
     smodel = Model(sdevice)
-    smodel.block_sizes = [smodel.wafer.shape[1]]*smodel.wafer.shape[0]
+    smodel.block_sizes = asarray([smodel.wafer.shape[1]]*smodel.wafer.shape[0])
     smodel.simpleH()
     smodel.eigensigma()
     print 'Hamiltonian shape = ', smodel.H.shape
-    print 'SpinSigma shape (Mode: Normal) = ', smodel.spinsigma(smodel.contacts[0], 0.2).shape
+    print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], 0.2).shape
     smodel.build_convolutionkernel()
 
     #smodel.simpleenergyintegrate(smodel.LRGM)

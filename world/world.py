@@ -34,7 +34,7 @@ class World:
 
     def __compose_nodes(self):
         from collections import OrderedDict
-        from customiterators import pairwise
+        from aux import pairwise
         nodes = OrderedDict()
         count = 0
         for item,next_item in pairwise(self.active_coords):

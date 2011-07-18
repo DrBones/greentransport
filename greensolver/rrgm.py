@@ -1,9 +1,9 @@
-def RRGM(self,Ablock):
+def rrgm(Ablock):
     """ Performs recursive algorithm (Svizhenko et. al) to calculate
     the retarded green's function, uses views on A, i.e. the block
     matrices of A, by Ablock """
     from scipy import array, hstack
-    number_of_blocks = len(self.block_sizes)
+    number_of_blocks = len(Ablock)
     grl = [Ablock[0,0].todense().I]
     prev_greensfnc = grl[0]
     for i in range(1,number_of_blocks):
