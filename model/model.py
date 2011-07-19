@@ -203,8 +203,13 @@ class Model:
         sigma = lil_matrix((multi*Ndim,multi*Ndim), dtype=complex128)
         if ind_contact[0].min() == 0:
             sigma[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            if mode=='spin':
+                sigma[self.wafer.shape[1]:self.wafer.shape[1]*multi, self.wafer.shape[1]:self.wafer.shape[1]*multi] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         elif ind_contact[0].max() == self.wafer.shape[0]-1:
-            sigma[-self.block_sizes[-1]*multi:, -self.block_sizes[-1]*multi:] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            #import pudb; pudb.set_trace()
+            sigma[-self.block_sizes[-1]:, -self.block_sizes[-1]:] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            if mode == 'spin':
+                sigma[-self.block_sizes[-1]*multi:-self.block_sizes[-1], -self.block_sizes[-1]*multi:-self.block_sizes[-1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
 
         return sigma
 
@@ -246,10 +251,8 @@ class Model:
         elif mode == 'spin':
             multi = 2
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
-        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],mode)
-        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],mode)
-        start = (number_of_nodes-self.wafer.shape[1])
-        end = number_of_nodes
+        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],mode=mode)
+        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],mode=mode)
         sigma_in_l = -2* sigma_l.imag[0:multi*self.block_sizes[1], 0:multi*self.block_sizes[1]] * self.fermifunction(E, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*multi:,-self.block_sizes[-1]*multi:] * self.fermifunction(E, mu=self.mu_r)
         A = (E+self.band_bottom)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
@@ -325,7 +328,7 @@ class Model:
     def adaptiveenergy(self):
         pass
 
-    def dorgm(self,energy, mode='normal'):
+    def dorrgm(self,energy, mode='normal'):
         from aux import SparseBlocks
         from greensolver import rrgm
         #from io import writeVTK
@@ -351,32 +354,9 @@ class Model:
             multi = 2
         A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
         Ablock = SparseBlocks(A,self.block_sizes*multi)
-        densi = lrgm(Ablock)
+        densi = lrgm(Ablock, sigma_in_l, sigma_in_r)
         dens = densi.real/(self.a**2)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
-        return dens
-
-    def numrgm(self,name,energy,num_modes='all',mode='normal'):
-        from sparseblockslice import SparseBlocks
-        from io import writeVTK
-        from scipy.sparse import eye, lil_matrix
-        from scipy import complex128
-        multi = 1
-        Ndim = self.wafer.shape[0]*self.wafer.shape[1]
-        ystride = self.wafer.shape[1]
-        number_of_nodes = self.wafer.shape[0]*self.wafer.shape[1]
-        start = (number_of_nodes-self.wafer.shape[1])
-        end = number_of_nodes
-        sigma_l = lil_matrix((Ndim,Ndim),dtype=complex128)
-        sigma_r = lil_matrix((Ndim,Ndim),dtype=complex128)
-        sigma_l[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = self.numsigma(energy-self.potential_drop[0],num_modes)
-        sigma_r[multi*start:multi*end,start:multi*end] = self.numsigma(energy-self.potential_drop[-1],num_modes)
-        A = (energy)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
-        #energy = self.Efermi
-        Ablock = SparseBlocks(A,self.block_sizes)
-        densi, temp1, temp2 = self.RRGM(Ablock)
-        dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
-        writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
 
     def build_convolutionkernel(self):

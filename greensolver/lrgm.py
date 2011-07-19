@@ -1,10 +1,11 @@
-def lrgm(self, Ablock, sigma_in_l, sigma_in_r):
+def lrgm(Ablock, sigma_in_l, sigma_in_r):
     """ Performs recursive algorithm (Svizhenko et.al) to calculate
     lesser green's function by the use of the diagonal and offdiagonal
     matrix-elements of the retarded green's function """
     from scipy import array, hstack
-    ignored, grl, Gr = self.RRGM(Ablock)
-    number_of_blocks = len(self.block_sizes)
+    from greensolver import rrgm
+    ignored, grl, Gr = rrgm(Ablock)
+    number_of_blocks = len(Ablock)
     gll = [grl[0] * sigma_in_l * grl[0].getH()]
     #len(block)-1 equals N-2 because of pythons way of building the range exclusive the endpoint
     for i in range(1,number_of_blocks-1):
