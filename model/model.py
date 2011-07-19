@@ -21,10 +21,11 @@ class Model:
         #effective mass in eV real in GaAs 0.063
         self.mass = 0.063*Model.m0
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
-        self.tso = self.alpha/(2 * self.a)
+        #self.tso = self.alpha/(2 * self.a)
+        self.tso = 0.1*self.t0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        #self.potential_drop = [0.1*self.t0/2, -0.1* self.t0/2]# in eV
-        self.potential_drop = [0,0]
+        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
+        #self.potential_drop = [0,0]
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
@@ -43,9 +44,10 @@ class Model:
         #electro-chemical potential in eV
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
-
-        self.__generate_potential_grid()
-        self.grid2serialized(self.potential_grid)
+        from scipy import r_
+        self.potential_grid = r_[[self.potential_drop[0]]*50*25,[0]*50*50,[self.potential_drop[1]]*50*25].reshape(100,50)
+        #self.__generate_potential_grid()
+        #self.grid2serialized(self.potential_grid)
         #self.__build_H()
 
     def __generate_potential_grid(self):
@@ -251,11 +253,11 @@ class Model:
         elif mode == 'spin':
             multi = 2
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
-        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],mode=mode)
-        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],mode=mode)
+        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],mode=mode,num_modes=2)
+        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],mode=mode,num_modes=2)
         sigma_in_l = -2* sigma_l.imag[0:multi*self.block_sizes[1], 0:multi*self.block_sizes[1]] * self.fermifunction(E, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*multi:,-self.block_sizes[-1]*multi:] * self.fermifunction(E, mu=self.mu_r)
-        A = (E+self.band_bottom)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        A = (E)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
@@ -339,8 +341,8 @@ class Model:
         #energy = self.Efermi
         A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
         Ablock = SparseBlocks(A,self.block_sizes*multi )
-        densi, temp1, temp2 = rrgm(Ablock)
-        dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
+        dens, temp1, temp2 = rrgm(Ablock)
+        #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
 
@@ -354,10 +356,18 @@ class Model:
             multi = 2
         A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
         Ablock = SparseBlocks(A,self.block_sizes*multi)
-        densi = lrgm(Ablock, sigma_in_l, sigma_in_r)
-        dens = densi.real/(self.a**2)
+        dens = lrgm(Ablock, sigma_in_l, sigma_in_r)
+        #dens = densi.real/(self.a**2)
+        #name = str(energy)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
+
+    def spindens(self,energy):
+        from scipy import split,pi
+        dens = self.dolrgm(energy, mode='spin')
+        Gup, Gdown = split(dens.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
+        Sz = self.hbar/(4*pi*1j*self.a**2)*(Gup-Gdown)
+        return Sz
 
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
@@ -382,23 +392,3 @@ class Model:
         factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
-
-    def selfconsistent(self,E):
-        from scipy import ones, pi
-        from sparseblockslice import SparseBlocks
-        #energy = self.Egrid[50]
-        initial_dens = 1e14*ones((self.wafer.shape[0] * self.wafer.shape[1]))
-        initial_phi = self.hartree_from_density(initial_dens)
-        A, sigma_in_l, sigma_in_r = self.simpleA(E)
-        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0])
-        density = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a)
-        return density
-
-    def setup(self):
-        from sparseblockslice import SparseBlocks
-        from scipy import pi
-        energy = self.Efermi
-        A, sigma_in_l, sigma_in_r = self.simpleA(energy)
-        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-        fncvalue = self.LRGM(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
-        return fncvalue

@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire100x50spinorbit.bmp')
+    sdevice = World('canvas/wire70x30spinorbit.bmp')
     smodel = Model(sdevice)
     smodel.block_sizes = asarray([smodel.wafer.shape[1]]*smodel.wafer.shape[0])
     smodel.simpleH()
@@ -37,13 +37,35 @@ def alt():
 def sweep(instance):
     from scipy import linspace
     from evtk.vtk import VtkGroup
+    from io import writeVTK
     g = VtkGroup("./group")
     i=0
     for energy_multi in linspace(-0.001,0.1,500):
-        instance.numrgm('output/huzzah'+str(i), energy_multi*instance.t0,2)
+        print i
+        dens = instance.dorrgm(energy_multi*instance.t0)
+        dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
+        writeVTK('output/huzzah'+str(i), 49, 99, pointData={"Density":dens})
         g.addFile(filepath='output/huzzah'+str(i)+'.vtr', sim_time=i)
         i+=1
     g.save()
+
+def spinint(instance):
+    from scipy import linspace,zeros
+    #from evtk.vtk import VtkGroup
+    from io import writeVTK
+    #g = VtkGroup("./spingroup")
+    i=0
+    dens = zeros((instance.wafer.shape[0],instance.wafer.shape[1]))
+    Espace =linspace(instance.potential_drop[1],instance.potential_drop[0],500)
+    dE = Espace[1]-Espace[0]
+    for energy_multi in Espace:
+        print i
+        dens = dens + instance.spindens(energy_multi*instance.t0)*dE
+        #g.addFile(filepath='output/huzzah'+str(i)+'.vtr', sim_time=i)
+        i+=1
+    writeVTK('spindens', 29, 69, pointData={"Spin Density":dens.flatten()})
+    return dens
+    #g.save()
 
 if __name__ == '__main__':
     alt()
