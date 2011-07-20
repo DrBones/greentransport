@@ -16,6 +16,7 @@ class Model:
         self.eps0 = world.eps0
         self.q = world.q
         #Potential Drop over legth of device
+        self.multi = 1
         self.a = 3e-9 # in meter
         self.alpha = 20e-12 # eV m
         #effective mass in eV real in GaAs 0.063
@@ -24,7 +25,6 @@ class Model:
         #self.tso = self.alpha/(2 * self.a)
         self.tso = 0.1*self.t0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
         #self.potential_drop = [0,0]
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
@@ -36,11 +36,12 @@ class Model:
         #self.band_bottom = 0
         self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.Efermi = 0
-        #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
+        #self.Efermi = 0
+        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
+        self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
+        #self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
-        self.dE = self.Egrid[1].real-self.Egrid[0].real
+        #self.dE = self.Egrid[1].real-self.Egrid[0].real
         #electro-chemical potential in eV
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
@@ -172,7 +173,7 @@ class Model:
     def eigensigma(self):
         from scipy.linalg import eig
         from scipy.sparse import lil_matrix
-        from scipy import argsort
+        from scipy import argsort,where
         #from scipy.sparse.linalg import eigen
         transverseH = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
         transverseH.setdiag([2*self.t0]*self.wafer.shape[1])
@@ -180,56 +181,51 @@ class Model:
         transverseH.setdiag([-self.t0]*self.wafer.shape[1],-1)
         #from pudb import set_trace; set_trace()
         v,d = eig(transverseH.todense())
-        if v.max() > self.Efermi-self.band_bottom:
-            print 'mode energy larger than fermi energy, please adjust'
         ndx = argsort(v)
         d=d[:,ndx]
         v=v[ndx]
         self.v = v
         self.d = d
+        self.maxmode = where(self.v < self.Efermi-self.band_bottom)[0].max()
+        if v.max() > self.Efermi-self.band_bottom:
+            print 'Some mode energies larger than fermi energy, only up to mode {0} will fit'.format(self.maxmode)
+            print 'Argument num_modes="all" takes only modes low enough'
+            print ''
 
-    def sigma(self, ind_contact, E, num_modes='all',mode='normal'):
-        from scipy import sqrt,exp,asarray,dot,diag
+    def sigma(self, ind_contact, E, num_modes='all'):
+        from scipy import sqrt,exp,asarray,dot,diag,where
         from scipy.sparse import lil_matrix
         from scipy import complex128
-        if mode == 'normal':
-            multi = 1
-        elif mode == 'spin':
-            multi = 2
         if num_modes == 'analytical' :
-            return self.analytic_sigma(ind_contact,E,mode)
+            return self.analytic_sigma(ind_contact,E)
         elif num_modes == 'all':
-            num_modes = self.wafer.shape[1]
+            num_modes =self.maxmode
         Ndim = self.canvas[0]*self.canvas[1]
-        dd = diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v[:num_modes])/self.t0)))
-        sigma = lil_matrix((multi*Ndim,multi*Ndim), dtype=complex128)
+        #dd = diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v[:num_modes])/self.t0)))
+        dd = diag(-self.t0*exp(1j*sqrt((E-self.v[:num_modes])/self.t0)))
+        sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         if ind_contact[0].min() == 0:
             sigma[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
-            if mode=='spin':
-                sigma[self.wafer.shape[1]:self.wafer.shape[1]*multi, self.wafer.shape[1]:self.wafer.shape[1]*multi] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            if self.multi==2:
+                sigma[self.wafer.shape[1]:self.wafer.shape[1]*self.multi, self.wafer.shape[1]:self.wafer.shape[1]*self.multi] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         elif ind_contact[0].max() == self.wafer.shape[0]-1:
             #import pudb; pudb.set_trace()
             sigma[-self.block_sizes[-1]:, -self.block_sizes[-1]:] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
-            if mode == 'spin':
-                sigma[-self.block_sizes[-1]*multi:-self.block_sizes[-1], -self.block_sizes[-1]*multi:-self.block_sizes[-1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
-
+            if self.multi == 2:
+                sigma[-self.block_sizes[-1]*self.multi:-self.block_sizes[-1], -self.block_sizes[-1]*self.multi:-self.block_sizes[-1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         return sigma
 
-    def analytic_sigma(self, ind_contact, E,mode='normal'):
+    def analytic_sigma(self, ind_contact, E):
         from scipy.sparse import lil_matrix
         from scipy import complex128
-        if mode == 'normal':
-            multi = 1
-        elif mode == 'spin':
-            multi = 2
         ystride = self.wafer.shape[1]
         Ndim = self.canvas[0]*self.canvas[1]
-        sigma = lil_matrix((multi*Ndim,multi*Ndim), dtype=complex128)
+        sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         contact_node = 0
         for xypair in ind_contact.T:
             index = xypair[1] + ystride*xypair[0]
             sigma[index, index] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
-            if mode=='normal':contact_node+=1; continue
+            if self.multi==1:contact_node+=1; continue
             sigma[index+ystride, index+ystride] = - self.t0 * self.__contact_greensfunction(ind_contact, contact_node, contact_node, E)
             contact_node +=1
         return sigma
@@ -245,117 +241,102 @@ class Model:
         A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
-    def spinA(self,E, mode='normal'):
+    def spinA(self,energy):
         from scipy.sparse import eye
         from scipy import complex128
-        if mode == 'normal':
-            multi = 1
-        elif mode == 'spin':
-            multi = 2
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
-        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],mode=mode,num_modes=2)
-        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],mode=mode,num_modes=2)
-        sigma_in_l = -2* sigma_l.imag[0:multi*self.block_sizes[1], 0:multi*self.block_sizes[1]] * self.fermifunction(E, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*multi:,-self.block_sizes[-1]*multi:] * self.fermifunction(E, mu=self.mu_r)
-        A = (E)*eye(multi*number_of_nodes,multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        E=self.Efermi+energy
+        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],num_modes=2)
+        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],num_modes=2)
+        sigma_in_l = -2* sigma_l.imag[0:self.multi*self.block_sizes[1], 0:self.multi*self.block_sizes[1]] * self.fermifunction(E, mu=self.mu_l)
+        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*self.multi:,-self.block_sizes[-1]*self.multi:] * self.fermifunction(E, mu=self.mu_r)
+        A = (E)*eye(self.multi*number_of_nodes,self.multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
-    def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
-        from scipy import pi, array
-        from scipy.sparse import lil_matrix
-        from sparseblockslice import SparseBlocks
-        #if integrand == self.RRGM:
-        #    value, foo = -integrand.__call__(Ablock).imag
-        #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
-        #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
-        #else:
-            #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
-        #integral = array([0]*len(self.nodes))
-        integral = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
-        #A = lil_matrix((len(self.nodes), len(self.nodes)))
-        #print A
-        max_density = []
-        i=0
-        for energy in self.Egrid:
-            #A, sigma_in_l, sigma_in_r = self.build_A(energy)
-            A, sigma_in_l, sigma_in_r = self.simpleA(energy)
-            #Ablock = SparseBlocks(A, self.block_sizes)
-            Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-            fncvalue = -integrand.__call__(Ablock)[0]*self.fermifunction(energy, self.mu)*self.dE/(pi*self.a)
-            self.writetovtk(fncvalue.imag, str(i))
-            summi = integral + fncvalue
-            i+=1
-            max_density.append(integral.imag.min())
-            self.writetovtk(summi.imag, 'summi')
+    #def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
+    #    from scipy import pi, array
+    #    from scipy.sparse import lil_matrix
+    #    from sparseblockslice import SparseBlocks
+    #    #if integrand == self.RRGM:
+    #    #    value, foo = -integrand.__call__(Ablock).imag
+    #    #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
+    #    #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
+    #    #else:
+    #        #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
+    #    #integral = array([0]*len(self.nodes))
+    #    integral = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
+    #    #A = lil_matrix((len(self.nodes), len(self.nodes)))
+    #    #print A
+    #    max_density = []
+    #    i=0
+    #    for energy in self.Egrid:
+    #        #A, sigma_in_l, sigma_in_r = self.build_A(energy)
+    #        A, sigma_in_l, sigma_in_r = self.simpleA(energy)
+    #        #Ablock = SparseBlocks(A, self.block_sizes)
+    #        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
+    #        fncvalue = -integrand.__call__(Ablock)[0]*self.fermifunction(energy, self.mu)*self.dE/(pi*self.a)
+    #        self.writetovtk(fncvalue.imag, str(i))
+    #        summi = integral + fncvalue
+    #        i+=1
+    #        max_density.append(integral.imag.min())
+    #        self.writetovtk(summi.imag, 'summi')
 
-        return integral, max_density
+    #    return integral, max_density
 
-    def spinenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None, mode='normal'):
-        from scipy import pi, array
-        #from scipy.sparse import lil_matrix
-        from sparseblockslice import SparseBlocks
-        #from scipy import vstack
-        #if integrand == self.RRGM:
-        #    value, foo = -integrand.__call__(Ablock).imag
-        #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
-        #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
-        #else:
-            #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
-        #hills = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
-        #A = lil_matrix((len(self.nodes), len(self.nodes)))
-        #print A
-        if mode == 'normal':
-            multiplier = 1
-        elif mode == 'spin':
-            multiplier = 2
-        integral = array([0]*multiplier*self.wafer.shape[0]*self.wafer.shape[1])
-        max_density = []
-        i=0
-        print "Current Energy:     ", "Left Occupation:     ", "Right Occupation:     ", "Maximum Density:"
-        for energy in self.Egrid:
-            #A, sigma_in_l, sigma_in_r = self.build_A(energy)
-            A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
-            #Ablock = SparseBlocks(A, self.block_sizes)
-            Ablock = SparseBlocks(A,[self.wafer.shape[1]*multiplier]*self.wafer.shape[0] )
-            fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
-            print i, energy,"            ", self.fermifunction(energy, mu=self.mu_l),"               ", self.fermifunction(energy, mu=self.mu_r),"          ", fncvalue.real.max()
-            #self.writetovtk(fncvalue.real, str(i))
-            integral = integral + fncvalue
-            #hills = vstack((hills,integral))
-            i+=1
-            max_density.append(fncvalue.real.max())
-        #self.writetovtk(integral.real, 'integrated')
-        return integral, max_density
+    #def spinenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
+    #    from scipy import pi, array
+    #    #from scipy.sparse import lil_matrix
+    #    from sparseblockslice import SparseBlocks
+    #    #from scipy import vstack
+    #    #if integrand == self.RRGM:
+    #    #    value, foo = -integrand.__call__(Ablock).imag
+    #    #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
+    #    #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
+    #    #else:
+    #        #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
+    #    #hills = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
+    #    #A = lil_matrix((len(self.nodes), len(self.nodes)))
+    #    #print A
+    #    integral = array([0]*self.multi*self.wafer.shape[0]*self.wafer.shape[1])
+    #    max_density = []
+    #    i=0
+    #    print "Current Energy:     ", "Left Occupation:     ", "Right Occupation:     ", "Maximum Density:"
+    #    for energy in self.Egrid:
+    #        #A, sigma_in_l, sigma_in_r = self.build_A(energy)
+    #        A, sigma_in_l, sigma_in_r = self.spinA(energy)
+    #        #Ablock = SparseBlocks(A, self.block_sizes)
+    #        Ablock = SparseBlocks(A,[self.wafer.shape[1]*self.multi]*self.wafer.shape[0] )
+    #        fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
+    #        print i, energy,"            ", self.fermifunction(energy, mu=self.mu_l),"               ", self.fermifunction(energy, mu=self.mu_r),"          ", fncvalue.real.max()
+    #        #self.writetovtk(fncvalue.real, str(i))
+    #        integral = integral + fncvalue
+    #        #hills = vstack((hills,integral))
+    #        i+=1
+    #        max_density.append(fncvalue.real.max())
+    #    #self.writetovtk(integral.real, 'integrated')
+    #    return integral, max_density
 
     def adaptiveenergy(self):
         pass
 
-    def dorrgm(self,energy, mode='normal'):
+    def dorrgm(self,energy):
         from aux import SparseBlocks
         from greensolver import rrgm
         #from io import writeVTK
-        if mode == 'normal':
-            multi = 1
-        elif mode == 'spin':
-            multi = 2
         #energy = self.Efermi
-        A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
-        Ablock = SparseBlocks(A,self.block_sizes*multi )
+        A, sigma_in_l, sigma_in_r = self.spinA(energy)
+        Ablock = SparseBlocks(A,self.block_sizes*self.multi )
         dens, temp1, temp2 = rrgm(Ablock)
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
 
-    def dolrgm(self,energy, mode='normal'):
+    def dolrgm(self,energy):
         from aux import SparseBlocks
         from greensolver import lrgm
         #from io import writeVTK
-        if mode == 'normal':
-            multi = 1
-        elif mode == 'spin':
-            multi = 2
-        A, sigma_in_l, sigma_in_r = self.spinA(energy,mode)
-        Ablock = SparseBlocks(A,self.block_sizes*multi)
+        A, sigma_in_l, sigma_in_r = self.spinA(energy)
+        Ablock = SparseBlocks(A,self.block_sizes*self.multi)
         dens = lrgm(Ablock, sigma_in_l, sigma_in_r)
         #dens = densi.real/(self.a**2)
         #name = str(energy)
@@ -364,7 +345,7 @@ class Model:
 
     def spindens(self,energy):
         from scipy import split,pi
-        dens = self.dolrgm(energy, mode='spin')
+        dens = self.dolrgm(energy)
         Gup, Gdown = split(dens.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
         Sz = self.hbar/(4*pi*1j*self.a**2)*(Gup-Gdown)
         return Sz
@@ -392,3 +373,9 @@ class Model:
         factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
+
+    def setmode(self,mode='normal'):
+        if mode == 'normal':
+            self.multi = 1
+        elif mode == 'spin':
+            self.multi = 2

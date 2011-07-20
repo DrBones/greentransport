@@ -53,10 +53,12 @@ def spinint(instance):
     from scipy import linspace,zeros
     #from evtk.vtk import VtkGroup
     from io import writeVTK
+    instance.spinH()
+    instance.setmode('spin')
     #g = VtkGroup("./spingroup")
     i=0
     dens = zeros((instance.wafer.shape[0],instance.wafer.shape[1]))
-    Espace =linspace(instance.potential_drop[1],instance.potential_drop[0],500)
+    Espace =linspace(instance.potential_drop[1],instance.potential_drop[0],50)
     dE = Espace[1]-Espace[0]
     for energy_multi in Espace:
         print i
