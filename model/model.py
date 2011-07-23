@@ -23,9 +23,8 @@ class Model:
         self.mass = 0.063*Model.m0
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
         #self.tso = self.alpha/(2 * self.a)
-        self.tso = 0.1*self.t0
+        self.tso = 0.2*self.t0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        #self.potential_drop = [0,0]
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
         self.kT = Model.kb * self.Temp
@@ -37,7 +36,8 @@ class Model:
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
         self.Efermi = 0.2*self.t0
-        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
+        #self.potential_drop = [0,0]
+        self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
         #self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
@@ -193,6 +193,10 @@ class Model:
             print ''
 
     def sigma(self, ind_contact, E, num_modes='all'):
+        """
+        Takes abolute energies from band_bottom to around Efermi and further 
+        until the fermifunction puts and end to this
+        """
         from scipy import sqrt,exp,asarray,dot,diag
         from scipy.sparse import lil_matrix
         from scipy import complex128
@@ -247,12 +251,13 @@ class Model:
         from scipy import complex128
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
         #E_tot=self.Efermi+E_rel
-        E_tot=E_rel-self.Efermi
+        E_tot=E_rel
         sigma_l = self.sigma(self.contacts[0],E_tot- self.potential_drop[0],num_modes=1)
         sigma_r =self.sigma(self.contacts[1], E_tot - self.potential_drop[1],num_modes=1)
         sigma_in_l = -2* sigma_l.imag[0:self.multi*self.block_sizes[1], 0:self.multi*self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*self.multi:,-self.block_sizes[-1]*self.multi:] * self.fermifunction(E_tot, mu=self.mu_r)
-        A = (E_tot+self.zplus)*eye(self.multi*number_of_nodes,self.multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        I =eye(self.multi*number_of_nodes,self.multi*number_of_nodes,dtype=complex128, format='lil')
+        A = (E_tot+self.zplus)*I - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     #def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
@@ -347,10 +352,23 @@ class Model:
 
     def spindens(self,energy):
         from scipy import split,pi
+        if self.multi == 1:
+            self.setmode('spin')
         dens = self.dolrgm(energy)
         Gup, Gdown = split(dens.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
         Sz = self.hbar/(4*pi*1j*self.a**2)*(Gup-Gdown)
-        return Sz
+        print 'max Spin Split: ', Sz.imag.max()-Sz.imag.min()
+        return Sz.imag
+
+    def edens(self,energy):
+        from scipy import split,pi
+        lrgm_out = self.dolrgm(energy)
+        if self.multi ==1:
+            edensity = lrgm_out.reshape(self.wafer.shape)*2/(2*pi*self.a**2) #times 2 for spin
+        if self.multi ==2:
+            Gup, Gdown = split(lrgm_out.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
+            edensity = 1/(2*pi*self.a**2)*(Gup+Gdown)
+        return edensity
 
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
@@ -378,6 +396,8 @@ class Model:
 
     def setmode(self,mode='normal'):
         if mode == 'normal':
+            self.simpleH()
             self.multi = 1
         elif mode == 'spin':
+            self.spinH()
             self.multi = 2

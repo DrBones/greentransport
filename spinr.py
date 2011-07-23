@@ -29,7 +29,7 @@ def alt():
     smodel.simpleH()
     smodel.eigensigma()
     print 'Hamiltonian shape = ', smodel.H.shape
-    print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], 0.2).shape
+    print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], smodel.Efermi).shape
     smodel.build_convolutionkernel()
 
     #smodel.simpleenergyintegrate(smodel.LRGM)
