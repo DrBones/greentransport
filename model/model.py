@@ -33,12 +33,12 @@ class Model:
         self.BField = 0 # in Tesla, from 0-~10
         self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
-        #self.band_bottom = 0
-        self.band_bottom = -4*self.t0
+        self.band_bottom = 0
+        #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        #self.Efermi = 0
-        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
-        self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
+        self.Efermi = 0.2*self.t0
+        self.potential_drop = [0.004*self.t0/2, -0.0004* self.t0/2]# in eV
+        #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
         #self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
         #self.dE = self.Egrid[1].real-self.Egrid[0].real
@@ -46,7 +46,7 @@ class Model:
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
         from scipy import r_
-        self.potential_grid = r_[[self.potential_drop[0]]*50*25,[0]*50*50,[self.potential_drop[1]]*50*25].reshape(100,50)
+        self.potential_grid = r_[[self.potential_drop[0]]*30*20,[0]*30*30,[self.potential_drop[1]]*30*20].reshape(70,30)
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
@@ -136,10 +136,10 @@ class Model:
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
         self.H = H
 
-    def fermifunction(self, E, mu):
+    def fermifunction(self, E_tot, mu):
         """ Simple Fermifunction """
         from scipy import exp
-        fermifnc = 1/(exp((E.real-mu)/self.kT)+1)
+        fermifnc = 1/(exp((E_tot.real-mu)/self.kT)+1)
         return fermifnc
 
     def __contact_greensfunction(self, ind_contact, node_i, node_j, E):
@@ -193,7 +193,7 @@ class Model:
             print ''
 
     def sigma(self, ind_contact, E, num_modes='all'):
-        from scipy import sqrt,exp,asarray,dot,diag,where
+        from scipy import sqrt,exp,asarray,dot,diag
         from scipy.sparse import lil_matrix
         from scipy import complex128
         if num_modes == 'analytical' :
@@ -241,16 +241,16 @@ class Model:
         A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
-    def spinA(self,energy):
+    def spinA(self,E_rel):
         from scipy.sparse import eye
         from scipy import complex128
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
-        E=self.Efermi+energy
-        sigma_l = self.sigma(self.contacts[0],E - self.potential_drop[0],num_modes=2)
-        sigma_r =self.sigma(self.contacts[1], E - self.potential_drop[1],num_modes=2)
-        sigma_in_l = -2* sigma_l.imag[0:self.multi*self.block_sizes[1], 0:self.multi*self.block_sizes[1]] * self.fermifunction(E, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*self.multi:,-self.block_sizes[-1]*self.multi:] * self.fermifunction(E, mu=self.mu_r)
-        A = (E)*eye(self.multi*number_of_nodes,self.multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
+        E_tot=self.Efermi+E_rel
+        sigma_l = self.sigma(self.contacts[0],E_tot- self.potential_drop[0],num_modes=1)
+        sigma_r =self.sigma(self.contacts[1], E_tot - self.potential_drop[1],num_modes=1)
+        sigma_in_l = -2* sigma_l.imag[0:self.multi*self.block_sizes[1], 0:self.multi*self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*self.multi:,-self.block_sizes[-1]*self.multi:] * self.fermifunction(E_tot, mu=self.mu_r)
+        A = (E_tot+self.zplus)*eye(self.multi*number_of_nodes,self.multi*number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     #def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
@@ -319,12 +319,12 @@ class Model:
     def adaptiveenergy(self):
         pass
 
-    def dorrgm(self,energy):
+    def dorrgm(self,E_rel):
         from aux import SparseBlocks
         from greensolver import rrgm
         #from io import writeVTK
         #energy = self.Efermi
-        A, sigma_in_l, sigma_in_r = self.spinA(energy)
+        A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
         Ablock = SparseBlocks(A,self.block_sizes*self.multi )
         dens, temp1, temp2 = rrgm(Ablock)
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
