@@ -58,14 +58,14 @@ def spinint(instance):
     #g = VtkGroup("./spingroup")
     i=0
     dens = zeros((instance.wafer.shape[0],instance.wafer.shape[1]))
-    Espace =linspace(instance.potential_drop[1],instance.potential_drop[0],50)
+    Espace =linspace(instance.potential_drop[1]/2,instance.potential_drop[0]/2,50)
     dE = Espace[1]-Espace[0]
     for E_rel in Espace:
         print i, 'Rel Energy: ',E_rel,'Total Energy: ',instance.Efermi+E_rel
         dens = dens + instance.spindens(E_rel)*dE
         #g.addFile(filepath='output/huzzah'+str(i)+'.vtr', sim_time=i)
         i+=1
-        writeVTK('output/spindens'+str(i), 29, 69, pointData={"Spin Density":dens.flatten()})
+        writeVTK('output/spindens'+str(i), 29, 69, pointData={"Spin Density":dens.imag.flatten()})
     return dens
     #g.save()
 

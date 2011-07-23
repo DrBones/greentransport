@@ -37,7 +37,7 @@ class Model:
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
         self.Efermi = 0.2*self.t0
-        self.potential_drop = [0.004*self.t0/2, -0.0004* self.t0/2]# in eV
+        self.potential_drop = [0.4*self.t0/2, -0.4* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
         #self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
@@ -203,6 +203,7 @@ class Model:
         Ndim = self.canvas[0]*self.canvas[1]
         #dd = diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v[:num_modes])/self.t0)))
         dd = diag(-self.t0*exp(1j*sqrt((E-self.v[:num_modes])/self.t0)))
+        print 'Energy in Sigma used: ',E-self.v[:num_modes]
         sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         if ind_contact[0].min() == 0:
             sigma[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
@@ -245,7 +246,8 @@ class Model:
         from scipy.sparse import eye
         from scipy import complex128
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
-        E_tot=self.Efermi+E_rel
+        #E_tot=self.Efermi+E_rel
+        E_tot=E_rel-self.Efermi
         sigma_l = self.sigma(self.contacts[0],E_tot- self.potential_drop[0],num_modes=1)
         sigma_r =self.sigma(self.contacts[1], E_tot - self.potential_drop[1],num_modes=1)
         sigma_in_l = -2* sigma_l.imag[0:self.multi*self.block_sizes[1], 0:self.multi*self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
