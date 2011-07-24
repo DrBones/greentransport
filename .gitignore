@@ -1,0 +1,9 @@
+*.vtk
+*.vtr
+*.vtu
+*.pyc
+*.pvd
+*.png
+*.mtx
+*.so
+.ropeproject*
