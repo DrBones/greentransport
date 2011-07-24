@@ -1,4 +1,5 @@
 class Model:
+    from aux import edens,spindens
 
     def __init__(self, world):
         from scipy import linspace, cos, pi
@@ -22,8 +23,8 @@ class Model:
         #effective mass in eV real in GaAs 0.063
         self.mass = 0.063*Model.m0
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
-        #self.tso = self.alpha/(2 * self.a)
-        self.tso = 0.2*self.t0
+        self.tso = self.alpha/(2 * self.a)
+        #self.tso = 0.1*self.t0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
@@ -35,7 +36,7 @@ class Model:
         self.band_bottom = 0
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.Efermi = 0.2*self.t0
+        self.Efermi = 0.1*self.t0
         #self.potential_drop = [0,0]
         self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
@@ -197,7 +198,7 @@ class Model:
         Takes abolute energies from band_bottom to around Efermi and further 
         until the fermifunction puts and end to this
         """
-        from scipy import sqrt,exp,asarray,dot,diag
+        from scipy import sqrt,exp,asarray,dot,diag,where
         from scipy.sparse import lil_matrix
         from scipy import complex128
         if num_modes == 'analytical' :
@@ -205,6 +206,8 @@ class Model:
         elif num_modes == 'all':
             num_modes =self.maxmode
         Ndim = self.canvas[0]*self.canvas[1]
+        #num_modes = where(self.v < E)[0].max()
+        print 'Number of Modes used: ', num_modes
         #dd = diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v[:num_modes])/self.t0)))
         dd = diag(-self.t0*exp(1j*sqrt((E-self.v[:num_modes])/self.t0)))
         print 'Energy in Sigma used: ',E-self.v[:num_modes]
@@ -349,26 +352,6 @@ class Model:
         #name = str(energy)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
         return dens
-
-    def spindens(self,energy):
-        from scipy import split,pi
-        if self.multi == 1:
-            self.setmode('spin')
-        dens = self.dolrgm(energy)
-        Gup, Gdown = split(dens.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
-        Sz = self.hbar/(4*pi*1j*self.a**2)*(Gup-Gdown)
-        print 'max Spin Split: ', Sz.imag.max()-Sz.imag.min()
-        return Sz.imag
-
-    def edens(self,energy):
-        from scipy import split,pi
-        lrgm_out = self.dolrgm(energy)
-        if self.multi ==1:
-            edensity = lrgm_out.reshape(self.wafer.shape)*2/(2*pi*self.a**2) #times 2 for spin
-        if self.multi ==2:
-            Gup, Gdown = split(lrgm_out.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
-            edensity = 1/(2*pi*self.a**2)*(Gup+Gdown)
-        return edensity
 
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
