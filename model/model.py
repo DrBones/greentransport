@@ -25,6 +25,7 @@ class Model:
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
         self.tso = self.alpha/(2 * self.a)
         #self.tso = 0.1*self.t0
+        #self.tso = 0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
         self.epsr = 12.85
         self.Temp = 2 #in Kelvin
@@ -47,7 +48,7 @@ class Model:
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
         from scipy import r_
-        self.potential_grid = r_[[self.potential_drop[0]]*30*20,[0]*30*30,[self.potential_drop[1]]*30*20].reshape(70,30)
+        self.potential_grid = r_[[self.potential_drop[0]]*30*2,[0]*30*66,[self.potential_drop[1]]*30*2].reshape(70,30)
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
@@ -84,7 +85,7 @@ class Model:
         self.H = H
 
     def simpleH(self):
-        from scipy.sparse import lil_matrix, triu
+        from scipy.sparse import lil_matrix, triu,bmat,eye,hstack
         from scipy import complex128, exp, pi
         Ndim = self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
@@ -105,9 +106,14 @@ class Model:
         Hupper = triu(H, 1)
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
         self.H = H
+        pad = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
+        hopping = -self.t0*eye(self.wafer.shape[1],self.wafer.shape[1])
+        hopping_upcont = hstack((hopping,lil_matrix((hopping.shape[0],Ndim-hopping.shape[1]))))
+        hopping_lowcont = hstack((lil_matrix((hopping.shape[0],Ndim-hopping.shape[1])),hopping))
+        self.Hpad = bmat([[pad,hopping_upcont,None],[hopping_upcont.T,H,hopping_lowcont.T],[None,hopping_lowcont,pad]])
 
     def spinH(self):
-        from scipy.sparse import lil_matrix, triu
+        from scipy.sparse import lil_matrix, triu,bmat
         from scipy import complex128, exp, pi
         Ndim = 2*self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
@@ -126,16 +132,28 @@ class Model:
                             if self.wafer[row,column+1] == 239:
                                 H[i,i+1+ystride] = self.tso
                                 H[i+1,i+ystride] = -self.tso
+                        if row == 0 and self.contacts[0].SO == True:
+                            H[i,i+1+ystride] = self.tso
+                            H[i+1,i+ystride] = -self.tso
+                        if row == self.wafer.shape[0]-1 and self.contacts[1].SO == True:
+                            H[i,i+1+ystride] = self.tso
+                            H[i+1,i+ystride] = -self.tso
+                    if row == self.wafer.shape[0]-2 and self.contacts[1].SO == True:
+                        H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
                     if row+1 == self.wafer.shape[0]: continue
                     if self.wafer[row+1,column] >0:
                         H[i,i+2*ystride] = H[i+ystride,i+ystride+2*ystride] = -exp(2 *
                                            pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
                         if self.wafer[row,column] == 239 and self.wafer[row+1,column] == 239:
                             H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
+                    if row == 0 and self.wafer[row+1,column] == 239:
+                        H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
             multi +=1
         Hupper = triu(H, 1)
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
         self.H = H
+        pad = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
+        self.Hpad = bmat([[pad,None,None],[None,H,None],[None,None,pad]])
 
     def fermifunction(self, E_tot, mu):
         """ Simple Fermifunction """
@@ -173,13 +191,17 @@ class Model:
 
     def eigensigma(self):
         from scipy.linalg import eig
-        from scipy.sparse import lil_matrix
+        from scipy.sparse import lil_matrix,bmat,eye
         from scipy import argsort,where
         #from scipy.sparse.linalg import eigen
         transverseH = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
         transverseH.setdiag([2*self.t0]*self.wafer.shape[1])
         transverseH.setdiag([-self.t0]*self.wafer.shape[1],1)
         transverseH.setdiag([-self.t0]*self.wafer.shape[1],-1)
+#following is wrong
+        #SO=eye(self.wafer.shape[1],self.wafer.shape[1],1)*self.tso-eye(self.wafer.shape[1],self.wafer.shape[1],-1)*self.tso
+        #transverseHspin = bmat([[transverseH, SO],[SO,transverseH]])
+        #self.HH = transverseHspin
         #from pudb import set_trace; set_trace()
         v,d = eig(transverseH.todense())
         ndx = argsort(v)
@@ -193,9 +215,68 @@ class Model:
             print 'Argument num_modes="all" takes only modes low enough'
             print ''
 
+    def transfersigma(self,ind_contact,E):
+        from scipy.linalg import eig,inv
+        from scipy.sparse import lil_matrix
+        from aux import SparseBlocks
+        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray
+        Ndim = self.canvas[0]*self.canvas[1]
+        block=ind_contact.shape[1]
+        Hblock = SparseBlocks(self.H,self.block_sizes)
+        self.Hblock = Hblock
+        I=eye(self.wafer.shape[1]*self.multi)
+        Zeros = zeros((block*self.multi,block*self.multi))
+        #if ind_contact.SO is False:
+        #    H00 = 4*self.t0*eye(block) -self.t0*eye(block,k=1) -self.t0*eye(block,k=-1)
+        #    Hhop = -self.t0*I #no Bfield as of now
+        #    inv_Hhop = -1/self.t0*I #no Bfield as of now
+        if ind_contact.index == 0:
+            H00 = asarray(Hblock[0,0].todense())
+            Hhop = asarray(Hblock[1,0].todense())
+            inv_Hhop = asarray(Hblock[0,1].todense().I)
+        if ind_contact.index == 1:
+            H00 = asarray(Hblock[-1,-1].todense())
+            Hhop = asarray(Hblock[-2,-1].todense())
+            inv_Hhop = asarray(Hblock[-1,-2].todense().I)
+        TransMatrix =vstack((hstack((dot(inv_Hhop,E*I-H00),dot(-inv_Hhop,Hhop))),hstack((I,Zeros))))
+        #print H00
+        #self.H00 = H00
+        #print Hhop
+        #self.Hhop = Hhop
+        #print inv_Hhop
+        #self.inv_Hhop = inv_Hhop
+        #print I.shape
+        #print Zeros.shape
+        #print TransMatrix.shape
+        v,S = eig(TransMatrix)
+        ndx = argsort(abs(v))
+        S=S[:,ndx]
+        v=v[ndx]
+        self.S=S
+        self.v =v
+        #Sleft,Sright = split(S,2,axis=1)
+        #S4,S3 = split(Sright,2,axis=0)
+        #S2,S1 = split(Sleft,2,axis=0)
+        S2 =S[:block*self.multi,:block*self.multi]
+        S1= S[block*self.multi:,:block*self.multi]
+        print 'S1 shape: ',S1.shape
+        print 'S2 shape: ',S2.shape
+        invBracket =inv(dot(E*I-H00,S1)-dot(Hhop,S2))
+        SigmaRet=self.t0**2*dot(S1,invBracket)
+        print 'SigaRet shape: ',SigmaRet.shape
+        sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
+        print 'sigma shape: ',sigma.shape
+        if ind_contact[0].min() == 0:
+            sigma[0:self.wafer.shape[1]*self.multi, 0:self.wafer.shape[1]*self.multi] = SigmaRet
+        elif ind_contact[0].max() == self.wafer.shape[0]-1:
+            #import pudb; pudb.set_trace()
+            sigma[-self.block_sizes[-1]:, -self.block_sizes[-1]:] = SigmaRet
+        return sigma
+
+
     def sigma(self, ind_contact, E, num_modes='all'):
         """
-        Takes abolute energies from band_bottom to around Efermi and further 
+        Takes abolute energies from band_bottom to around Efermi and further
         until the fermifunction puts and end to this
         """
         from scipy import sqrt,exp,asarray,dot,diag,where
@@ -253,13 +334,18 @@ class Model:
         from scipy.sparse import eye
         from scipy import complex128
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
+        global sigma_l,sigma_r,sigma_in_l,sigma_in_r
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
-        sigma_l = self.sigma(self.contacts[0],E_tot- self.potential_drop[0],num_modes=1)
-        sigma_r =self.sigma(self.contacts[1], E_tot - self.potential_drop[1],num_modes=1)
-        sigma_in_l = -2* sigma_l.imag[0:self.multi*self.block_sizes[1], 0:self.multi*self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]*self.multi:,-self.block_sizes[-1]*self.multi:] * self.fermifunction(E_tot, mu=self.mu_r)
-        I =eye(self.multi*number_of_nodes,self.multi*number_of_nodes,dtype=complex128, format='lil')
+        sigma_l = self.transfersigma(self.contacts[0],E_tot- self.potential_drop[0])
+        sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
+        sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+        I =eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil')
+        print 'sigmainl',sigma_in_l.shape
+        print 'sigmainr',sigma_in_r.shape
+        print 'I',I.shape
+        print 'H', self.H.shape
         A = (E_tot+self.zplus)*I - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
@@ -335,7 +421,7 @@ class Model:
         #from io import writeVTK
         #energy = self.Efermi
         A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
-        Ablock = SparseBlocks(A,self.block_sizes*self.multi )
+        Ablock = SparseBlocks(A,self.block_sizes )
         dens, temp1, temp2 = rrgm(Ablock)
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
@@ -346,7 +432,7 @@ class Model:
         from greensolver import lrgm
         #from io import writeVTK
         A, sigma_in_l, sigma_in_r = self.spinA(energy)
-        Ablock = SparseBlocks(A,self.block_sizes*self.multi)
+        Ablock = SparseBlocks(A,self.block_sizes)
         dens = lrgm(Ablock, sigma_in_l, sigma_in_r)
         #dens = densi.real/(self.a**2)
         #name = str(energy)
@@ -379,8 +465,9 @@ class Model:
 
     def setmode(self,mode='normal'):
         if mode == 'normal':
-            self.simpleH()
             self.multi = 1
+            self.simpleH()
         elif mode == 'spin':
-            self.spinH()
             self.multi = 2
+            self.block_sizes=[self.wafer.shape[1]*self.multi]*self.wafer.shape[0]
+            self.spinH()

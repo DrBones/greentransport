@@ -8,7 +8,7 @@ import scipy
 #import matplotlib.pyplot as plt
 #import time
 #import scipy.linalg as sl
-scipy.set_printoptions(precision=3,suppress=True)
+#scipy.set_printoptions(precision=3,suppress=True)
 from world import World
 from model import Model
 #from sparseblockslice import SparseBlocks
@@ -23,14 +23,14 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire70x30spinorbit.bmp')
+    sdevice = World('canvas/wire70x30fullspinorbit.bmp')
     smodel = Model(sdevice)
-    smodel.block_sizes = asarray([smodel.wafer.shape[1]]*smodel.wafer.shape[0])
-    smodel.simpleH()
-    smodel.eigensigma()
-    print 'Hamiltonian shape = ', smodel.H.shape
-    print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], smodel.Efermi).shape
-    smodel.build_convolutionkernel()
+    #smodel.block_sizes = asarray([smodel.wafer.shape[1]]*(smodel.wafer.shape[0]))
+    #smodel.simpleH()
+    #smodel.eigensigma()
+    #print 'Hamiltonian shape = ', smodel.H.shape
+    #print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], smodel.Efermi).shape
+    #smodel.build_convolutionkernel()
 
     #smodel.simpleenergyintegrate(smodel.LRGM)
 

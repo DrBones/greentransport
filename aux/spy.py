@@ -14,5 +14,5 @@ def spy(mat):
     matrix.load_matrix(nrows, ncols, nnz, imat, m)
     viewer = matrix.MatrixViewer(m, title="Sparsity")
     viewer.show()
-    viewer.draw_border(50,50)
-    viewer.draw_border(100,100)
+    viewer.draw_border(30,30)
+    viewer.draw_border(60,60)

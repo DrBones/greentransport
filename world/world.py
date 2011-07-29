@@ -1,6 +1,6 @@
 class World:
 
-    defaultatlas = 'qpc6cellswide100x50nopad.bmp'
+    defaultatlas = 'canvas/wire70x30spinorbit.bmp'
 
     def __init__(self, atlas=defaultatlas):
         self.atlas = atlas
@@ -16,16 +16,32 @@ class World:
         self.__blocksizes_from_coords()
 
     def __read_geometry(self):
+        """reads in bmp and generates contacts and other
+        objects of interest"""
         from PIL import Image
         from scipy import where, asarray, array, transpose
+        from aux import Contact
         img = Image.open(self.atlas)
         arr = asarray(img)
         contacts = []
         contact_shades = [119, 149, 179, 209]
+        contact_index = 0
         for shade in contact_shades:
-            a = array(where(arr == shade))
+            a = Contact(where(arr == shade))
             if a.shape[1] == 0: continue
+            a.index = contact_index
+            try:
+                if any(arr[a[0][0]+1,:]==239):
+                    a.SO = True
+                else:
+                    a.SO = False
+            except IndexError:
+                if any(arr[a[0][0]-1,:] == 239):
+                    a.SO = True
+                else:
+                    a.So = False
             contacts.append(a)
+            contact_index +=1
         active_coords = transpose(where(arr > 0))
         self.wafer = arr
         self.canvas = arr.shape
