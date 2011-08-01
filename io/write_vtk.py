@@ -1,5 +1,6 @@
 from evtk.vtk import VtkFile, VtkRectilinearGrid
 import numpy as np
+from numpy import flipud
 # =================================
 #       Helper functions      
 # =================================
@@ -9,7 +10,7 @@ def __addDataToFile(vtkFile, cellData, pointData):
         keys = pointData.keys()
         vtkFile.openData("Point", scalars = keys[0])
         for key in keys:
-            data = pointData[key].real.flatten()
+            data = flipud(pointData[key]).real.flatten()
             vtkFile.addData(key, data)
         vtkFile.closeData("Point")
 
@@ -18,7 +19,7 @@ def __addDataToFile(vtkFile, cellData, pointData):
         keys = cellData.keys()
         vtkFile.openData("Cell", scalars = keys[0])
         for key in keys:
-            data = cellData[key].real.flatten()
+            data = flipud(cellData[key]).real.flatten()
             vtkFile.addData(key, data)
         vtkFile.closeData("Cell")
 
@@ -27,13 +28,13 @@ def __appendDataToFile(vtkFile, cellData, pointData):
     if pointData <> None:
         keys = pointData.keys()
         for key in keys:
-            data = pointData[key].real.flatten()
+            data = flipud(pointData[key]).real.flatten()
             vtkFile.appendData(data)
 
     if cellData <> None:
         keys = cellData.keys()
         for key in keys:
-            data = cellData[key].real.flatten()
+            data = flipud(cellData[key]).real.flatten()
             vtkFile.appendData(data)
 
 

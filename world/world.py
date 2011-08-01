@@ -39,7 +39,7 @@ class World:
                 if any(arr[a[0][0]-1,:] == 239):
                     a.SO = True
                 else:
-                    a.So = False
+                    a.SO = False
             contacts.append(a)
             contact_index +=1
         active_coords = transpose(where(arr > 0))

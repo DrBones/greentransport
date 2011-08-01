@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire70x30fullspinorbit.bmp')
+    sdevice = World('canvas/wire70x30spinorbit.bmp')
     smodel = Model(sdevice)
     #smodel.block_sizes = asarray([smodel.wafer.shape[1]]*(smodel.wafer.shape[0]))
     #smodel.simpleH()
@@ -38,16 +38,31 @@ def sweep(instance):
     from scipy import linspace
     from evtk.vtk import VtkGroup
     from io import writeVTK
-    g = VtkGroup("./group")
+    import datetime
+    import matplotlib
+    from matplotlib.backends.backend_pdf import PdfPages
+    from pylab import plot,figure,title,close
+    import matplotlib.pyplot as plt
+    g = VtkGroup("./group_contdrop")
     i=0
-    for energy_multi in linspace(-0.001,0.1,500):
+    pdf = PdfPages('Eigenvalues_contdrop.pdf')
+    for energy_multi in linspace(-0.09,0.09,50):
         print i
-        dens = instance.dorrgm(energy_multi*instance.t0)
-        dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
-        writeVTK('output/huzzah'+str(i), 49, 99, pointData={"Density":dens})
-        g.addFile(filepath='output/huzzah'+str(i)+'.vtr', sim_time=i)
+        spindens =instance.spindens(instance.dolrgm(instance.Efermi+instance.zplus+energy_multi*instance.t0)).real
+        edens =instance.edens(instance.dolrgm(instance.Efermi+instance.zplus+energy_multi*instance.t0)).real
+        #dens = instance.dorrgm(energy_multi*instance.t0)
+        #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
+        writeVTK('output/spindens_contdrop'+str(i), 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
+        g.addFile(filepath='output/spindens_contdrop'+str(i)+'.vtr', sim_time=i)
+        figure(figsize=(3,3))
+        plot(instance.v.imag)
+        plot(instance.v.real)
+        title('Page '+str(i))
+        pdf.savefig()
+        close()
         i+=1
     g.save()
+    pdf.close()
 
 def spinint(instance):
     from scipy import linspace,zeros
