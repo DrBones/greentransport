@@ -21,10 +21,10 @@ class Model:
         self.a = 3e-9 # in meter
         self.alpha = 20e-12 # eV m
         #effective mass in eV real in GaAs 0.063
-        self.mass = 0.063*Model.m0
+        self.mass = 0.036*Model.m0
         self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
-        #self.tso = self.alpha/(2 * self.a)
-        self.tso = 0.1*self.t0
+        self.tso = self.alpha/(2 * self.a)
+        #self.tso = 0.01*self.t0
         #self.tso = 0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
         self.epsr = 12.85
@@ -38,8 +38,8 @@ class Model:
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
         self.Efermi = 0.1*self.t0
-        #self.potential_drop = [0,0]
-        self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
+        self.potential_drop = [0,0]
+        #self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
         #self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
         self.mu = self.Efermi
@@ -224,6 +224,7 @@ class Model:
         from scipy.sparse import lil_matrix
         from aux import SparseBlocks
         from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray,ones
+        E= E+self.zplus
         Ndim = self.canvas[0]*self.canvas[1]
         block=ind_contact.shape[1]
         Hblock = SparseBlocks(self.H,self.block_sizes)
@@ -262,14 +263,23 @@ class Model:
         print 'S2 shape: ',S2.shape
         invBracket =inv(dot(E*I-H00,S1)-dot(H10,S2))
         SigmaRet=self.t0**2*dot(S1,invBracket)
+        if ind_contact.index == 0:
+            self.SigmaRet1 = SigmaRet
+            #temp = zeros((60,60),dtype=complex128)
+            #temp[30:60,30:60] =SigmaRet[:30,:30]
+            #SigmaRet=temp
+        else :
+            self.SigmaRet2 = SigmaRet
         print 'SigaRet shape: ',SigmaRet.shape
         sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         print 'sigma shape: ',sigma.shape
         if ind_contact[0].min() == 0:
-            sigma[0:self.wafer.shape[1]*self.multi, 0:self.wafer.shape[1]*self.multi] = SigmaRet
+            sigma[0:SigmaRet.shape[0], 0:SigmaRet.shape[1]] = SigmaRet
+            self.sigma1=sigma
         elif ind_contact[0].max() == self.wafer.shape[0]-1:
-            sigma[-self.block_sizes[-1]:, -self.block_sizes[-1]:] = SigmaRet
-        import pudb; pudb.set_trace()
+            sigma[-SigmaRet.shape[0]:, -SigmaRet.shape[1]:] = SigmaRet
+            self.sigma2=sigma
+        #import pudb; pudb.set_trace()
         return sigma
 
     def sigma(self, ind_contact, E, num_modes='all'):
@@ -425,7 +435,7 @@ class Model:
         dens, temp1, temp2 = rrgm(Ablock)
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
-        return dens
+        return dens, temp1, temp2
 
     def dolrgm(self,energy):
         from aux import SparseBlocks

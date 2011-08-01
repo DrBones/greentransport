@@ -23,8 +23,10 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire70x30spinorbit.bmp')
+    sdevice = World('canvas/wire200x30fullspinorbit.bmp')
     smodel = Model(sdevice)
+    print 'Bias used: ',smodel.potential_drop
+    print 'Fermienergy used: ',smodel.Efermi
     #smodel.block_sizes = asarray([smodel.wafer.shape[1]]*(smodel.wafer.shape[0]))
     #smodel.simpleH()
     #smodel.eigensigma()
@@ -43,17 +45,18 @@ def sweep(instance):
     from matplotlib.backends.backend_pdf import PdfPages
     from pylab import plot,figure,title,close
     import matplotlib.pyplot as plt
-    g = VtkGroup("./group_contdrop")
+    g = VtkGroup("./group")
     i=0
     pdf = PdfPages('Eigenvalues_contdrop.pdf')
     for energy_multi in linspace(-0.09,0.09,50):
         print i
-        spindens =instance.spindens(instance.dolrgm(instance.Efermi+instance.zplus+energy_multi*instance.t0)).real
-        edens =instance.edens(instance.dolrgm(instance.Efermi+instance.zplus+energy_multi*instance.t0)).real
+        lrgm_val = instance.dolrgm(instance.Efermi+instance.zplus+energy_multi*instance.t0)
+        spindens =instance.spindens(lrgm_val).real
+        edens =instance.edens(lrgm_val).real
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
-        writeVTK('output/spindens_contdrop'+str(i), 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
-        g.addFile(filepath='output/spindens_contdrop'+str(i)+'.vtr', sim_time=i)
+        writeVTK('output/spindensA'+str(i), 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
+        g.addFile(filepath='output/spindensA'+str(i)+'.vtr', sim_time=i)
         figure(figsize=(3,3))
         plot(instance.v.imag)
         plot(instance.v.real)
