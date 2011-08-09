@@ -48,11 +48,11 @@ def sweep(instance):
     g = VtkGroup("./group")
     i=0
     pdf = PdfPages('Eigenvalues_contdrop.pdf')
-    for energy_multi in linspace(-0.09,0.09,50):
+    for energy_multi in linspace(-0.09,0.01,100):
         print i
-        lrgm_val = instance.dolrgm(instance.Efermi+instance.zplus+energy_multi*instance.t0)
-        spindens =instance.spindens(lrgm_val).real
-        edens =instance.edens(lrgm_val).real
+        lrgm_val = instance.dolrgm(instance.Efermi+energy_multi*instance.t0)
+        spindens =instance.spindens(lrgm_val)
+        edens =instance.edens(lrgm_val)
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
         writeVTK('output/spindensA'+str(i), 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
