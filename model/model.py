@@ -223,7 +223,7 @@ class Model:
         from scipy.linalg import eig,inv
         from scipy.sparse import lil_matrix
         from aux import SparseBlocks
-        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray,ones
+        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray
         E= E+self.zplus
         Ndim = self.canvas[0]*self.canvas[1]
         block=ind_contact.shape[1]
@@ -428,7 +428,7 @@ class Model:
     def dorrgm(self,E_rel):
         from aux import SparseBlocks
         from greensolver import rrgm
-        #from io import writeVTK
+        #from io_spinr import writeVTK
         #energy = self.Efermi
         A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
         Ablock = SparseBlocks(A,self.block_sizes )
@@ -440,7 +440,7 @@ class Model:
     def dolrgm(self,energy):
         from aux import SparseBlocks
         from greensolver import lrgm
-        #from io import writeVTK
+        #from io_spinr import writeVTK
         A, sigma_in_l, sigma_in_r = self.spinA(energy)
         Ablock = SparseBlocks(A,self.block_sizes)
         dens = lrgm(Ablock, sigma_in_l, sigma_in_r)

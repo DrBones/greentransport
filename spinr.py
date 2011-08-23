@@ -13,7 +13,7 @@ from world import World
 from model import Model
 #from sparseblockslice import SparseBlocks
 from aux import spy as sspy
-#from io import writeVTK
+#from io_spinr import writeVTK
 def main():
     global device, model
     device = World()
@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire200x30fullspinorbit.bmp')
+    sdevice = World('canvas/wire70x30spinorbit.bmp')
     smodel = Model(sdevice)
     print 'Bias used: ',smodel.potential_drop
     print 'Fermienergy used: ',smodel.Efermi
@@ -39,7 +39,7 @@ def alt():
 def sweep(instance):
     from scipy import linspace
     from evtk.vtk import VtkGroup
-    from io import writeVTK
+    from io_spinr import writeVTK
     import datetime
     import matplotlib
     from matplotlib.backends.backend_pdf import PdfPages
@@ -70,7 +70,7 @@ def sweep(instance):
 def spinint(instance):
     from scipy import linspace,zeros
     #from evtk.vtk import VtkGroup
-    from io import writeVTK
+    from io_spinr import writeVTK
     instance.spinH()
     instance.setmode('spin')
     #g = VtkGroup("./spingroup")
