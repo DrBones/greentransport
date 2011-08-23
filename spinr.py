@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire70x30spinorbit.bmp')
+    sdevice = World('canvas/wire200x30fullspinorbit.bmp')
     smodel = Model(sdevice)
     print 'Bias used: ',smodel.potential_drop
     print 'Fermienergy used: ',smodel.Efermi

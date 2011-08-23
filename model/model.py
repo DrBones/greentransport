@@ -223,7 +223,7 @@ class Model:
         from scipy.linalg import eig,inv
         from scipy.sparse import lil_matrix
         from aux import SparseBlocks
-        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray
+        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray,split
         E= E+self.zplus
         Ndim = self.canvas[0]*self.canvas[1]
         block=ind_contact.shape[1]
@@ -252,17 +252,21 @@ class Model:
         v=v[ndx]
         self.S=S
         self.v =v
-        #Sleft,Sright = split(S,2,axis=1)
-        #S4,S3 = split(Sright,2,axis=0)
-        #S2,S1 = split(Sleft,2,axis=0)
-        S2 =S[:block*self.multi,:block*self.multi]
-        S1= S[block*self.multi:,:block*self.multi]
+        Sleft,Sright = split(S,2,axis=1)
+        S4,S3 = split(Sright,2,axis=0)
+        S2,S1 = split(Sleft,2,axis=0)
+        #S2 =S[:block*self.multi,:block*self.multi]
+        #S1= S[block*self.multi:,:block*self.multi]
         self.S2 = S2
         self.S1 = S1
         print 'S1 shape: ',S1.shape
         print 'S2 shape: ',S2.shape
-        invBracket =inv(dot(E*I-H00,S1)-dot(H10,S2))
-        SigmaRet=self.t0**2*dot(S1,invBracket)
+        if ind_contact.index == 0:
+            dotted = dot(S2,inv(S1))
+        if ind_contact.index == 1:
+            dotted = dot(S3,inv(S4))
+        invBracket =inv(E*I-H00-dot(H10,dotted))
+        SigmaRet=self.t0**2*invBracket
         if ind_contact.index == 0:
             self.SigmaRet1 = SigmaRet
             #temp = zeros((60,60),dtype=complex128)
