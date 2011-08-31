@@ -47,7 +47,7 @@ class Model:
         #electro-chemical potential in eV
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
-        self.stepgrid(2,2)
+        self.stepgrid(100,35)
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
@@ -57,7 +57,6 @@ class Model:
         self.potential_grid = (r_[[self.potential_drop[0]]*self.wafer.shape[1]*step1,
             [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
             [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
-
 
     def __generate_potential_grid(self):
         from scipy import linspace, tile
@@ -134,14 +133,14 @@ class Model:
                         if self.wafer[row,column+1] > 0 :
                             H[i,i+1] = H[i+ystride,i+1+ystride] = -self.t0
                             if self.wafer[row,column+1] == 239:
-                                H[i,i+1+ystride] = self.tso
-                                H[i+1,i+ystride] = -self.tso
+                                H[i,i+1+ystride] = -self.tso
+                                H[i+1,i+ystride] = self.tso
                         if row == 0 and self.contacts[0].SO == True:
-                            H[i,i+1+ystride] = self.tso
-                            H[i+1,i+ystride] = -self.tso
+                            H[i,i+1+ystride] = -self.tso
+                            H[i+1,i+ystride] = self.tso
                         if row == self.wafer.shape[0]-1 and self.contacts[1].SO == True:
-                            H[i,i+1+ystride] = self.tso
-                            H[i+1,i+ystride] = -self.tso
+                            H[i,i+1+ystride] = -self.tso
+                            H[i+1,i+ystride] = self.tso
                     if row == self.wafer.shape[0]-2 and self.contacts[1].SO == True:
                         H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
                     if row+1 == self.wafer.shape[0]: continue
@@ -219,6 +218,10 @@ class Model:
             print 'Argument num_modes="all" takes only modes low enough'
             print ''
 
+    def gamma(self, sigma):
+        gamma = 1j*(sigma-sigma.conj())
+        return gamma
+
     def transfersigma(self,ind_contact,E):
         from scipy.linalg import eig,inv
         from scipy.sparse import lil_matrix
@@ -237,15 +240,17 @@ class Model:
         #    inv_Hhop = -1/self.t0*I #no Bfield as of now
         if ind_contact.index == 0:
             H00 = asarray(Hblock[0,0].todense())
-            H10 = asarray(Hblock[1,0].todense())
-            inv_H01 = asarray(Hblock[0,1].todense().I)
+            #H10 = asarray(Hblock[1,0].todense())
+            H01 = asarray(Hblock[0,1].todense())
+            inv_H01 = inv(H01)
         if ind_contact.index == 1:
             H00 = asarray(Hblock[-1,-1].todense())
-            H10 = asarray(Hblock[-1,-2].todense())
+            #H10 = asarray(Hblock[-1,-2].todense())
+            H01 = asarray(Hblock[-2,-1].todense())
             """indices switch because hopping matrices go the other
             direction x --> -x, better results this way altough not much difference"""
-            inv_H01 = asarray(Hblock[-2,-1].todense().I)
-        TransMatrix =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H10))),hstack((I,Zeros))))
+            inv_H01 = inv(H01)
+        TransMatrix =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H01.conj().T))),hstack((I,Zeros))))
         v,S = eig(TransMatrix)
         ndx = argsort(abs(v))
         S=S[:,ndx]
@@ -265,7 +270,7 @@ class Model:
             dotted = dot(S2,inv(S1))
         if ind_contact.index == 1:
             dotted = dot(S3,inv(S4))
-        invBracket =inv(E*I-H00-dot(H10,dotted))
+        invBracket =inv(E*I-H00-dot(H01,dotted))
         SigmaRet=self.t0**2*invBracket
         if ind_contact.index == 0:
             self.SigmaRet1 = SigmaRet
@@ -311,9 +316,9 @@ class Model:
                 sigma[self.wafer.shape[1]:self.wafer.shape[1]*self.multi, self.wafer.shape[1]:self.wafer.shape[1]*self.multi] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         elif ind_contact[0].max() == self.wafer.shape[0]-1:
             #import pudb; pudb.set_trace()
-            sigma[-self.block_sizes[-1]:, -self.block_sizes[-1]:] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            sigma[-self.block_sizes[-1]/2:, -self.block_sizes[-1]/2:] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
             if self.multi == 2:
-                sigma[-self.block_sizes[-1]*self.multi:-self.block_sizes[-1], -self.block_sizes[-1]*self.multi:-self.block_sizes[-1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+                sigma[-self.block_sizes[-1]:-self.block_sizes[-1]/2, -self.block_sizes[-1]:-self.block_sizes[-1]/2] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         return sigma
 
     def analytic_sigma(self, ind_contact, E):
@@ -349,10 +354,12 @@ class Model:
         global sigma_l,sigma_r,sigma_in_l,sigma_in_r
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
-        #sigma_l = self.transfersigma(self.contacts[0],E_tot- self.potential_drop[0])
-        sigma_l = self.transfersigma(self.contacts[0], E_tot)
-        #sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
-        sigma_r =self.transfersigma(self.contacts[1], E_tot)
+        sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
+        #sigma_l = self.transfersigma(self.contacts[0], E_tot)
+        sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
+        #sigma_r =self.transfersigma(self.contacts[1], E_tot)
+        self.gamma_l = self.gamma(sigma_l)
+        self.gamma_r = self.gamma(sigma_r)
         sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
         sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
         I =eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil')
@@ -436,10 +443,10 @@ class Model:
         #energy = self.Efermi
         A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
         Ablock = SparseBlocks(A,self.block_sizes )
-        dens, temp1, temp2 = rrgm(Ablock)
+        dens, grl, Gr= rrgm(Ablock)
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
-        return dens, temp1, temp2
+        return dens, grl, Gr
 
     def dolrgm(self,energy):
         from aux import SparseBlocks
@@ -480,6 +487,7 @@ class Model:
     def setmode(self,mode='normal'):
         if mode == 'normal':
             self.multi = 1
+            self.block_sizes=[self.wafer.shape[1]*self.multi]*self.wafer.shape[0]
             self.simpleH()
         elif mode == 'spin':
             self.multi = 2

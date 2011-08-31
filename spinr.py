@@ -36,36 +36,46 @@ def alt():
 
     #smodel.simpleenergyintegrate(smodel.LRGM)
 
-def sweep(instance):
-    from scipy import linspace
+def sweep(instance,name=''):
+    from scipy import linspace,zeros
     from evtk.vtk import VtkGroup
     from io_spinr import writeVTK
     import datetime
+    now = datetime.datetime.now()
+    name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
     import matplotlib
     from matplotlib.backends.backend_pdf import PdfPages
     from pylab import plot,figure,title,close
     import matplotlib.pyplot as plt
-    g = VtkGroup("./group")
+    g = VtkGroup("./group"+name)
     i=0
-    pdf = PdfPages('Eigenvalues_contdrop.pdf')
-    for energy_multi in linspace(-0.09,0.01,100):
+    #pdf = PdfPages('Eigenvalues_contdrop.pdf')
+    intdens = zeros((instance.canvas[0],instance.canvas[1]))
+    for enmulti in linspace(instance.Efermi-0.004*instance.t0,instance.Efermi+0.004*instance.t0,100):
         print i
-        lrgm_val = instance.dolrgm(instance.Efermi+energy_multi*instance.t0)
-        spindens =instance.spindens(lrgm_val)
-        edens =instance.edens(lrgm_val)
+        lrgm_val = instance.dolrgm(enmulti)
+        filename = 'output/spinr'+name+'_'+str(i)
+        if instance.multi == 2:
+            edens =instance.edens(lrgm_val)
+            spindens =instance.spindens(lrgm_val)
+            writeVTK(filename, 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
+        else:
+            edens =instance.edens(lrgm_val)
+            writeVTK(filename, 29, 199, pointData={"Density":edens})
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
-        writeVTK('output/spindensA'+str(i), 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
-        g.addFile(filepath='output/spindensA'+str(i)+'.vtr', sim_time=i)
-        figure(figsize=(3,3))
-        plot(instance.v.imag)
-        plot(instance.v.real)
-        title('Page '+str(i))
-        pdf.savefig()
-        close()
+        intdens = intdens + spindens
+        g.addFile(filepath=filename+'.vtr', sim_time=i)
+        #figure(figsize=(3,3))
+        #plot(instance.v.imag)
+        #plot(instance.v.real)
+        #title('Page '+str(i))
+        #pdf.savefig()
+        #close()
         i+=1
     g.save()
-    pdf.close()
+    return intdens
+    #pdf.close()
 
 def spinint(instance):
     from scipy import linspace,zeros

@@ -13,4 +13,5 @@ def edens(self,lrgm_out):
     if self.multi ==2:
         Gup, Gdown = split(lrgm_out.reshape(self.wafer.shape[0],self.wafer.shape[1]*2),2,axis=1)
         edensity = 1/(2*pi*self.a**2)*(Gup+Gdown)
+    print 'max Electron Density: ', edensity.max()
     return edensity.real
