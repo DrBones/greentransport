@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire200x30fullspinorbit.bmp')
+    sdevice = World('canvas/wire70x30fullspinorbit.bmp')
     smodel = Model(sdevice)
     print 'Bias used: ',smodel.potential_drop
     print 'Fermienergy used: ',smodel.Efermi
@@ -37,21 +37,21 @@ def alt():
     #smodel.simpleenergyintegrate(smodel.LRGM)
 
 def sweep(instance,name=''):
-    from scipy import linspace,zeros
+    from scipy import linspace,zeros,array,sum,trace,pi
     from evtk.vtk import VtkGroup
     from io_spinr import writeVTK
     import datetime
     now = datetime.datetime.now()
     name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
-    import matplotlib
     from matplotlib.backends.backend_pdf import PdfPages
-    from pylab import plot,figure,title,close
+    #from pylab import plot,figure,title,close,imshow
     import matplotlib.pyplot as plt
-    g = VtkGroup("./group"+name)
+    #g = VtkGroup("./group"+name)
+    conductivity = []
     i=0
-    #pdf = PdfPages('Eigenvalues_contdrop.pdf')
+    pdf = PdfPages('Density_and_Conductivity.pdf')
     intdens = zeros((instance.canvas[0],instance.canvas[1]))
-    for enmulti in linspace(instance.Efermi-0.004*instance.t0,instance.Efermi+0.004*instance.t0,100):
+    for enmulti in linspace(instance.Efermi-0.09*instance.t0,instance.Efermi+0.5*instance.t0,500):
         print i
         lrgm_val = instance.dolrgm(enmulti)
         filename = 'output/spinr'+name+'_'+str(i)
@@ -61,21 +61,30 @@ def sweep(instance,name=''):
             writeVTK(filename, 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
-            writeVTK(filename, 29, 199, pointData={"Density":edens})
+            #writeVTK(filename, 29, 199, pointData={"Density":edens})
+        t = instance.transmission(instance.grl)
+        G= array(trace(abs(t)**2))
+        conductivity.append(G)
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
-        intdens = intdens + spindens
-        g.addFile(filepath=filename+'.vtr', sim_time=i)
-        #figure(figsize=(3,3))
+        #intdens = intdens + spindens
+        #g.addFile(filepath=filename+'.vtr', sim_time=i)
+        plt.figure(figsize=(3,3))
+        plt.imshow(edens)
+        plt.colorbar()
         #plot(instance.v.imag)
         #plot(instance.v.real)
-        #title('Page '+str(i))
-        #pdf.savefig()
+        plt.title('Page '+str(i))
+        pdf.savefig()
         #close()
         i+=1
-    g.save()
-    return intdens
-    #pdf.close()
+    #g.save()
+    plt.figure(figsize=(3,3))
+    plt.plot(conductivity)
+    pdf.savefig()
+    pdf.close()
+    #import pudb; pudb.set_trace()
+    return
 
 def spinint(instance):
     from scipy import linspace,zeros

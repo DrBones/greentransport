@@ -23,4 +23,4 @@ def lrgm(Ablock, sigma_in_l, sigma_in_r):
     for i in range(number_of_blocks):
         less_diag = array(Gl[i,i].diagonal()).reshape(-1)
         less_green_diag = hstack((less_green_diag, less_diag))
-    return less_green_diag
+    return less_green_diag, grl

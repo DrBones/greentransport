@@ -1,5 +1,5 @@
 class Model:
-    from aux import edens,spindens
+    from aux import edens,spindens,transmission
 
     def __init__(self, world):
         from scipy import linspace, cos, pi
@@ -47,7 +47,7 @@ class Model:
         #electro-chemical potential in eV
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
-        self.stepgrid(100,35)
+        self.stepgrid(2,2)
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
@@ -58,6 +58,8 @@ class Model:
             [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
             [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
 
+    def naivepc(self):
+        pass
     def __generate_potential_grid(self):
         from scipy import linspace, tile
         rowdim = self.wafer.shape[0]
@@ -264,6 +266,8 @@ class Model:
         #S1= S[block*self.multi:,:block*self.multi]
         self.S2 = S2
         self.S1 = S1
+        self.S4 = S4
+        self.S3 = S3
         print 'S1 shape: ',S1.shape
         print 'S2 shape: ',S2.shape
         if ind_contact.index == 0:
@@ -443,10 +447,20 @@ class Model:
         #energy = self.Efermi
         A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
         Ablock = SparseBlocks(A,self.block_sizes )
-        dens, grl, Gr= rrgm(Ablock)
+        diag, grl, Gr= rrgm(Ablock)
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
-        return dens, grl, Gr
+        return diag, grl, Gr
+
+    def conductance(self,energy):
+        """ WRRRROOOOOOONNNNNGGGGG """
+        from aux import transmission
+        from scipy import pi
+        rrgm_out = self.dorrgm(energy)
+        G_pq = self.e**2/(self.h*2*pi)*transmission(rrgm_out)
+        return G_pq
+
+
 
     def dolrgm(self,energy):
         from aux import SparseBlocks
@@ -454,11 +468,12 @@ class Model:
         #from io_spinr import writeVTK
         A, sigma_in_l, sigma_in_r = self.spinA(energy)
         Ablock = SparseBlocks(A,self.block_sizes)
-        dens = lrgm(Ablock, sigma_in_l, sigma_in_r)
+        lrgm_value= lrgm(Ablock, sigma_in_l, sigma_in_r)
+        self.grl = lrgm_value[1]
         #dens = densi.real/(self.a**2)
         #name = str(energy)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
-        return dens
+        return lrgm_value[0]
 
     def build_convolutionkernel(self):
         from scipy import zeros, hstack, vstack
