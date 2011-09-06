@@ -30,6 +30,7 @@ class World:
             a = Contact(where(arr == shade))
             if a.shape[1] == 0: continue
             a.index = contact_index
+            #from pudb import set_trace; set_trace()
             try:
                 if any(arr[a[0][0]+1,:]==239):
                     a.SO = True

@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/wire70x30fullspinorbit.bmp')
+    sdevice = World('canvas/rect200x400.bmp')
     smodel = Model(sdevice)
     print 'Bias used: ',smodel.potential_drop
     print 'Fermienergy used: ',smodel.Efermi
@@ -35,6 +35,59 @@ def alt():
     #smodel.build_convolutionkernel()
 
     #smodel.simpleenergyintegrate(smodel.LRGM)
+def conductivity_sweep(instance,name=''):
+    from scipy import linspace,zeros,array,sum,trace,pi
+    from evtk.vtk import VtkGroup
+    from io_spinr import writeVTK
+    import datetime
+    now = datetime.datetime.now()
+    name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
+    from matplotlib.backends.backend_pdf import PdfPages
+    #from pylab import plot,figure,title,close,imshow
+    import matplotlib.pyplot as plt
+    #g = VtkGroup("./group"+name)
+    conductivity = []
+    i=0
+    pdf = PdfPages('Density_and_Conductivity.pdf')
+    for i in range(70):
+        print i
+        shift = 100+i
+        print "Setting up Potential Landscape"
+        instance.naivepc(shift,radius=30,scale=100)
+        print "Starting to generate Hamiltonian"
+        instance.setmode('normal')
+        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
+        lrgm_val = instance.dolrgm(instance.Efermi)
+        print "Finished lrgm ...Yeah!", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
+        filename = 'output/spinr'+name+'_'+str(i)
+        if instance.multi == 2:
+            edens =instance.edens(lrgm_val)
+            spindens =instance.spindens(lrgm_val)
+            writeVTK(filename, 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
+        else:
+            edens =instance.edens(lrgm_val)
+            #writeVTK(filename, 29, 199, pointData={"Density":edens})
+        t = instance.transmission(instance.grl)
+        G= array(trace(abs(t)**2))
+        conductivity.append(G)
+        #dens = instance.dorrgm(energy_multi*instance.t0)
+        #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
+        #intdens = intdens + spindens
+        #g.addFile(filepath=filename+'.vtr', sim_time=i)
+        plt.figure(figsize=(3,3))
+        plt.imshow(edens)
+        plt.colorbar()
+        plt.title('Page '+str(i))
+        pdf.savefig()
+        #close()
+        i+=1
+    #g.save()
+    plt.figure(figsize=(3,3))
+    plt.plot(conductivity)
+    pdf.savefig()
+    pdf.close()
+    #import pudb; pudb.set_trace()
+    return
 
 def sweep(instance,name=''):
     from scipy import linspace,zeros,array,sum,trace,pi
@@ -51,9 +104,16 @@ def sweep(instance,name=''):
     i=0
     pdf = PdfPages('Density_and_Conductivity.pdf')
     intdens = zeros((instance.canvas[0],instance.canvas[1]))
-    for enmulti in linspace(instance.Efermi-0.09*instance.t0,instance.Efermi+0.5*instance.t0,500):
+    for enmulti in linspace(instance.Efermi-0.09*instance.t0,instance.Efermi+0.5*instance.t0,70):
         print i
+        shift = 100+i
+        print "Setting up Potential Landscape"
+        instance.naivepc(shift,radius=30,scale=100)
+        print "Starting to generate Hamiltonian"
+        instance.setmode('normal')
+        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(now.hour, now.minute,now.second)
         lrgm_val = instance.dolrgm(enmulti)
+        print "Finished lrgm ...Yeah!", '{0}:{1}:{2}'.format(now.hour, now.minute,now.second)
         filename = 'output/spinr'+name+'_'+str(i)
         if instance.multi == 2:
             edens =instance.edens(lrgm_val)

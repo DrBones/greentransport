@@ -9,3 +9,4 @@ from contact import Contact
 from spy import spy
 from custom_func import heaviside
 from custom_func import Pot
+from custom_func import sphericalPot

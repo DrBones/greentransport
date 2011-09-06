@@ -47,7 +47,8 @@ class Model:
         #electro-chemical potential in eV
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
-        self.stepgrid(2,2)
+        #self.stepgrid(2,2)
+        self.naivepc()
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
@@ -58,8 +59,15 @@ class Model:
             [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
             [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
 
-    def naivepc(self):
-        pass
+    def naivepc(self,shift=0,radius=1,scale=1):
+        from scipy import ogrid
+        import aux
+        size_x = self.wafer.shape[0]
+        size_y = self.wafer.shape[1]
+        x,y = ogrid[0:size_x:size_x*1j,0:size_y:size_y*1j]
+        self.potential_grid = aux.sphericalPot(x,y,shift,radius,scale)
+
+
     def __generate_potential_grid(self):
         from scipy import linspace, tile
         rowdim = self.wafer.shape[0]
@@ -355,18 +363,30 @@ class Model:
         from scipy.sparse import eye
         from scipy import complex128
         number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
-        global sigma_l,sigma_r,sigma_in_l,sigma_in_r
+        #global sigma_l,sigma_r,sigma_in_l,sigma_in_r
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
-        sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
-        #sigma_l = self.transfersigma(self.contacts[0], E_tot)
-        sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
-        #sigma_r =self.transfersigma(self.contacts[1], E_tot)
-        self.gamma_l = self.gamma(sigma_l)
-        self.gamma_r = self.gamma(sigma_r)
-        sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+        if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
+            sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
+            self.sigma_l = sigma_l
+            #sigma_l = self.transfersigma(self.contacts[0], E_tot)
+            sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
+            self.sigma_r = sigma_r
+            #sigma_r =self.transfersigma(self.contacts[1], E_tot)
+            self.gamma_l = self.gamma(sigma_l)
+            self.gamma_r = self.gamma(sigma_r)
+            sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+            self.sigma_in_l = sigma_in_l
+            sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+            self.sigma_in_r = sigma_in_r
+        else:
+            sigma_l = self.sigma_l
+            sigma_r = self.sigma_r
+            sigma_in_l = self.sigma_in_l
+            sigma_in_r = self.sigma_in_r
+
         I =eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil')
+        self.lastenergy = E_rel
         print 'sigmainl',sigma_in_l.shape
         print 'sigmainr',sigma_in_r.shape
         print 'I',I.shape
