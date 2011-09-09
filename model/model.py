@@ -37,7 +37,7 @@ class Model:
         self.band_bottom = 0
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.Efermi = 4.5*self.t0
+        self.Efermi = 0.2*self.t0
         self.potential_drop = [0,0]
         #self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
@@ -373,10 +373,10 @@ class Model:
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
         if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
-            sigma_l = self.sigma(self.contacts[0],E_tot - self.potential_drop[0])
+            sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
             self.sigma_l = sigma_l
             #sigma_l = self.transfersigma(self.contacts[0], E_tot)
-            sigma_r =self.sigma(self.contacts[1], E_tot - self.potential_drop[1])
+            sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
             self.sigma_r = sigma_r
             #sigma_r =self.transfersigma(self.contacts[1], E_tot)
             self.gamma_l = self.gamma(sigma_l)

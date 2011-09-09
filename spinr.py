@@ -23,13 +23,13 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/10x20wire.bmp')
-    smodel = Model(sdevice)
-    print 'Bias used: ',smodel.potential_drop
-    print 'Fermienergy used: ',smodel.Efermi
+    device = World('canvas/10x20wire.bmp')
+    model = Model(device)
+    print 'Bias used: ',model.potential_drop
+    print 'Fermienergy used: ',model.Efermi
     #smodel.block_sizes = asarray([smodel.wafer.shape[1]]*(smodel.wafer.shape[0]))
     #smodel.simpleH()
-    smodel.eigensigma()
+    # smodel.eigensigma()
     #print 'Hamiltonian shape = ', smodel.H.shape
     #print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], smodel.Efermi).shape
     #smodel.build_convolutionkernel()
@@ -70,8 +70,6 @@ def conductivity_sweep(instance,name=''):
             #writeVTK(filename, 29, 199, pointData={"Density":edens})
         t = instance.transmission(instance.grl)
         transmissions.append(t)
-        G= array(trace(abs(t)**2))
-        conductivity.append(G)
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
         #intdens = intdens + spindens
