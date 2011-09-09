@@ -37,7 +37,7 @@ class Model:
         self.band_bottom = 0
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.Efermi = 0.1*self.t0
+        self.Efermi = 4.5*self.t0
         self.potential_drop = [0,0]
         #self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
@@ -59,7 +59,7 @@ class Model:
             [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
             [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
 
-    def naivepc(self,shift=0,radius=1,scale=1):
+    def naivepc(self,shift=0,radius=1,scale=0):
         from scipy import ogrid
         import aux
         size_x = self.wafer.shape[0]
@@ -222,7 +222,10 @@ class Model:
         v=v[ndx]
         self.v = v
         self.d = d
-        self.maxmode = where(self.v < self.Efermi-self.band_bottom)[0].max()
+        try:
+            self.maxmode = where(self.v < self.Efermi-self.band_bottom)[0].max()+1
+        except ValueError:
+            print "ValueError probably no modes will fit at that energy"
         if v.max() > self.Efermi-self.band_bottom:
             print 'Some mode energies larger than fermi energy, only up to mode {0} will fit'.format(self.maxmode)
             print 'Argument num_modes="all" takes only modes low enough'
@@ -321,16 +324,19 @@ class Model:
         #dd = diag(-self.t0*exp(1j*sqrt((E-self.band_bottom-self.v[:num_modes])/self.t0)))
         dd = diag(-self.t0*exp(1j*sqrt((E-self.v[:num_modes])/self.t0)))
         print 'Energy in Sigma used: ',E-self.v[:num_modes]
+        SigmaRet  = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
         sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         if ind_contact[0].min() == 0:
-            sigma[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            self.SigmaRet1 = SigmaRet
+            sigma[0:self.wafer.shape[1], 0:self.wafer.shape[1]] = SigmaRet
             if self.multi==2:
-                sigma[self.wafer.shape[1]:self.wafer.shape[1]*self.multi, self.wafer.shape[1]:self.wafer.shape[1]*self.multi] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+                sigma[self.wafer.shape[1]:self.wafer.shape[1]*self.multi, self.wafer.shape[1]:self.wafer.shape[1]*self.multi] = SigmaRet
         elif ind_contact[0].max() == self.wafer.shape[0]-1:
             #import pudb; pudb.set_trace()
-            sigma[-self.block_sizes[-1]/2:, -self.block_sizes[-1]/2:] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+            self.SigmaRet2 = SigmaRet
+            sigma[-self.block_sizes[-1]:, -self.block_sizes[-1]:] = SigmaRet
             if self.multi == 2:
-                sigma[-self.block_sizes[-1]:-self.block_sizes[-1]/2, -self.block_sizes[-1]:-self.block_sizes[-1]/2] = asarray(dot(dot(self.d[:,:num_modes],dd),self.d[:,:num_modes].T))
+                sigma[-self.block_sizes[-1]:-self.block_sizes[-1]/2, -self.block_sizes[-1]:-self.block_sizes[-1]/2] = SigmaRet
         return sigma
 
     def analytic_sigma(self, ind_contact, E):
@@ -367,10 +373,10 @@ class Model:
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
         if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
-            sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
+            sigma_l = self.sigma(self.contacts[0],E_tot - self.potential_drop[0])
             self.sigma_l = sigma_l
             #sigma_l = self.transfersigma(self.contacts[0], E_tot)
-            sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
+            sigma_r =self.sigma(self.contacts[1], E_tot - self.potential_drop[1])
             self.sigma_r = sigma_r
             #sigma_r =self.transfersigma(self.contacts[1], E_tot)
             self.gamma_l = self.gamma(sigma_l)
@@ -468,6 +474,7 @@ class Model:
         A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
         Ablock = SparseBlocks(A,self.block_sizes )
         diag, grl, Gr= rrgm(Ablock)
+        self.grl=grl
         #dens = -densi.imag/(self.a**2)*self.fermifunction(energy, self.mu)
         #writeVTK(name, 49, 99, pointData={"Density":dens})
         return diag, grl, Gr

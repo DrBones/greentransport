@@ -29,7 +29,7 @@ def alt():
     print 'Fermienergy used: ',smodel.Efermi
     #smodel.block_sizes = asarray([smodel.wafer.shape[1]]*(smodel.wafer.shape[0]))
     #smodel.simpleH()
-    #smodel.eigensigma()
+    smodel.eigensigma()
     #print 'Hamiltonian shape = ', smodel.H.shape
     #print 'Sigma shape (Mode: Normal) = ', smodel.sigma(smodel.contacts[0], smodel.Efermi).shape
     #smodel.build_convolutionkernel()

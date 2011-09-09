@@ -19,6 +19,6 @@ def edens(self,lrgm_out):
 def transmission(self,rrgm_out):
      from scipy import matrix,sqrt
      last_element_index = len(self.block_sizes)-1
-     G_pq = rrgm_out[last_element_index,0]
-     transmission_pq = matrix(sqrt(-self.SigmaRet2.imag+0j))*G_pq*matrix(sqrt(-self.SigmaRet1.imag+0j))
+     G_pq = matrix(rrgm_out[last_element_index,0])
+     transmission_pq = matrix(sqrt(-2*self.SigmaRet2.imag+0j))*G_pq*matrix(sqrt(-2*self.SigmaRet1.imag+0j))
      return transmission_pq
