@@ -20,5 +20,5 @@ def transmission(self,rrgm_out):
      from scipy import matrix,sqrt
      last_element_index = len(self.block_sizes)-1
      G_pq = matrix(rrgm_out[last_element_index,0])
-     transmission_pq = matrix(sqrt(-2*self.SigmaRet2.imag+0j))*G_pq*matrix(sqrt(-2*self.SigmaRet1.imag+0j))
-     return transmission_pq
+     T = matrix(-2*self.SigmaRet2.imag)*G_pq*matrix(-2*self.SigmaRet1.imag)*G_pq.getH()
+     return T
