@@ -17,8 +17,8 @@ def edens(self,lrgm_out):
     return edensity.real
 
 def transmission(self,rrgm_out):
-     from scipy import matrix,sqrt
+     from scipy import matrix,trace
      last_element_index = len(self.block_sizes)-1
      G_pq = matrix(rrgm_out[last_element_index,0])
-     T = matrix(-2*self.SigmaRet2.imag)*G_pq*matrix(-2*self.SigmaRet1.imag)*G_pq.getH()
+     T = trace(matrix(-2*self.SigmaRet2.imag)*G_pq*matrix(-2*self.SigmaRet1.imag)*G_pq.getH())
      return T
