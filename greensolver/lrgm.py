@@ -17,8 +17,8 @@ def lrgm(Ablock, sigma_in_l, sigma_in_r):
     Gl = {}
     Gl[number_of_blocks-1,number_of_blocks-1] = gll[-1]
     for i in reversed(range(1,number_of_blocks)):
-        Gl[i,i-1] = Gr[i,i] * Ablock[i,i-1] * gll[i-1] - Gl[i,i] * Ablock[i-1,i].getH() * grl[i-1,i-1].getH()
-        Gl[i-1,i-1] = (gll[i-1] + grl[i-1,i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i-1,i].getH()) * grl[i-1,i-1].getH() + (gll[i-1] * Ablock[i,i-1].getH() * Gr[i-1,i].getH() + Gr[i-1,i] * Ablock[i,i-1] * gll[i-1]))
+        Gl[i,i-1] = Gr[i,i] * (-Ablock[i,i-1]) * gll[i-1] - Gl[i,i] * (-Ablock[i-1,i].getH()) * grl[i-1,i-1].getH()
+        Gl[i-1,i-1] = (gll[i-1] + grl[i-1,i-1] * (Ablock[i-1,i] * Gl[i,i] * Ablock[i-1,i].getH()) * grl[i-1,i-1].getH() + (gll[i-1] * (-Ablock[i,i-1].getH()) * Gr[i-1,i].getH() + Gr[i-1,i] * (-Ablock[i,i-1]) * gll[i-1]))
     less_green_diag = array([])
     for i in range(number_of_blocks):
         less_diag = array(Gl[i,i].diagonal()).reshape(-1)

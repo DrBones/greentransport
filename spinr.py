@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    sdevice = World('canvas/rect200x400.bmp')
+    sdevice = World('canvas/10x20wire.bmp')
     smodel = Model(sdevice)
     print 'Bias used: ',smodel.potential_drop
     print 'Fermienergy used: ',smodel.Efermi
@@ -48,10 +48,11 @@ def conductivity_sweep(instance,name=''):
     #g = VtkGroup("./group"+name)
     conductivity = []
     i=0
-    pdf = PdfPages('Density_and_Conductivity.pdf')
-    for i in range(70):
+    pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
+    transmissions = []
+    for i in range(200):
         print i
-        shift = 100+i
+        shift = i/2.5
         print "Setting up Potential Landscape"
         instance.naivepc(shift,radius=30,scale=100)
         print "Starting to generate Hamiltonian"
@@ -68,6 +69,7 @@ def conductivity_sweep(instance,name=''):
             edens =instance.edens(lrgm_val)
             #writeVTK(filename, 29, 199, pointData={"Density":edens})
         t = instance.transmission(instance.grl)
+        transmissions.append(t)
         G= array(trace(abs(t)**2))
         conductivity.append(G)
         #dens = instance.dorrgm(energy_multi*instance.t0)
@@ -87,7 +89,7 @@ def conductivity_sweep(instance,name=''):
     pdf.savefig()
     pdf.close()
     #import pudb; pudb.set_trace()
-    return
+    return transmissions
 
 def sweep(instance,name=''):
     from scipy import linspace,zeros,array,sum,trace,pi
