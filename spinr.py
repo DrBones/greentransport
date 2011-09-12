@@ -23,7 +23,7 @@ def main():
 def alt():
     global smodel, sdevice
     from scipy import asarray
-    device = World('canvas/10x20wire.bmp')
+    device = World('canvas/rect200x400.bmp')
     model = Model(device)
     print 'Bias used: ',model.potential_drop
     print 'Fermienergy used: ',model.Efermi
@@ -37,8 +37,10 @@ def alt():
     #smodel.simpleenergyintegrate(smodel.LRGM)
 def conductivity_sweep(instance,name=''):
     from scipy import linspace,zeros,array,sum,trace,pi
-    from evtk.vtk import VtkGroup
+    #from evtk.vtk import VtkGroup
     from io_spinr import writeVTK
+    import matplotlib
+    matplotlib.use('Agg')
     import datetime
     now = datetime.datetime.now()
     name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
@@ -46,7 +48,6 @@ def conductivity_sweep(instance,name=''):
     #from pylab import plot,figure,title,close,imshow
     import matplotlib.pyplot as plt
     #g = VtkGroup("./group"+name)
-    conductivity = []
     i=0
     pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
     transmissions = []
@@ -83,7 +84,7 @@ def conductivity_sweep(instance,name=''):
         i+=1
     #g.save()
     plt.figure(figsize=(3,3))
-    plt.plot(conductivity)
+    plt.plot(transmissions)
     pdf.savefig()
     pdf.close()
     #import pudb; pudb.set_trace()
