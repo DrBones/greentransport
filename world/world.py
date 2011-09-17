@@ -12,7 +12,7 @@ class World:
         self.kb = 8.6173324e-5 # ev /K
 
         self.__read_geometry()
-        self.__compose_nodes()
+        #self.__compose_nodes()
         self.__blocksizes_from_coords()
 
     def __read_geometry(self):
@@ -43,11 +43,11 @@ class World:
                     a.SO = False
             contacts.append(a)
             contact_index +=1
-        active_coords = transpose(where(arr > 0))
+        self.raw_coords = where(arr > 0)
+        self.active_coords = transpose(self.raw_coords)
         self.wafer = arr
         self.canvas = arr.shape
         self.contacts = contacts
-        self.active_coords = active_coords
 
     def __compose_nodes(self):
         from collections import OrderedDict

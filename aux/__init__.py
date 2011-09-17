@@ -10,3 +10,5 @@ from spy import spy
 from custom_func import heaviside
 from custom_func import Pot
 from custom_func import sphericalPot
+from graph_library import graph_from_coords
+from graph_library import BreadthFirstLevels

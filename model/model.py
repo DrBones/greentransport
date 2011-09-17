@@ -1,5 +1,6 @@
 class Model:
     from aux import edens,spindens,transmission
+    import networkx as nx
 
     def __init__(self, world):
         from scipy import linspace, cos, pi
@@ -9,9 +10,10 @@ class Model:
         Model.m0 = world.m0
         Model.kb = world.kb
 
-        self.nodes = world.nodes
+        #self.nodes = world.nodes
         self.wafer = world.wafer
         self.contacts = world.contacts
+        self.raw_coords = world.raw_coords
         self.active_coords = world.active_coords
         self.block_sizes = world.block_sizes
         self.eps0 = world.eps0
@@ -32,12 +34,11 @@ class Model:
         self.kT = Model.kb * self.Temp
         self.lambdaf = 10 # i believe in nanometer, 35 more realistic?
         self.BField = 0 # in Tesla, from 0-~10
-        self.Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         self.zplus = 1j*1e-12
         self.band_bottom = 0
         #self.band_bottom = -4*self.t0
         #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.Efermi = 0.2*self.t0
+        self.Efermi = 0.15*self.t0
         self.potential_drop = [0,0]
         #self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
         #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
@@ -66,7 +67,6 @@ class Model:
         size_y = self.wafer.shape[1]
         x,y = ogrid[0:size_x:size_x*1j,0:size_y:size_y*1j]
         self.potential_grid = aux.sphericalPot(x,y,shift,radius,scale)
-
 
     def __generate_potential_grid(self):
         from scipy import linspace, tile
@@ -100,6 +100,7 @@ class Model:
     def simpleH(self):
         from scipy.sparse import lil_matrix, triu,bmat,eye,hstack
         from scipy import complex128, exp, pi
+        Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         Ndim = self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
         H = lil_matrix((Ndim,Ndim),dtype=complex128)
@@ -115,7 +116,7 @@ class Model:
                             H[i,i+1] = -self.t0
                     if row+1 == self.wafer.shape[0]: continue
                     if self.wafer[row+1,column] >0:
-                        H[i,i+ystride] = -exp(2 * pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
+                        H[i,i+ystride] = -exp(2 * pi*1j*Balpha*column%self.wafer.shape[1])*self.t0
         Hupper = triu(H, 1)
         H = (Hupper.tocsr() + H.tocsr().conjugate().T).tolil()
         self.H = H
@@ -128,6 +129,7 @@ class Model:
     def spinH(self):
         from scipy.sparse import lil_matrix, triu,bmat
         from scipy import complex128, exp, pi
+        Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         Ndim = 2*self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
         H = lil_matrix((Ndim,Ndim),dtype=complex128)
@@ -156,7 +158,7 @@ class Model:
                     if row+1 == self.wafer.shape[0]: continue
                     if self.wafer[row+1,column] >0:
                         H[i,i+2*ystride] = H[i+ystride,i+ystride+2*ystride] = -exp(2 *
-                                           pi*1j*self.Balpha*column%self.wafer.shape[1])*self.t0
+                                           pi*1j*Balpha*column%self.wafer.shape[1])*self.t0
                         if self.wafer[row,column] == 239 and self.wafer[row+1,column] == 239:
                             H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
                     if row == 0 and self.wafer[row+1,column] == 239:
@@ -167,6 +169,29 @@ class Model:
         self.H = H
         pad = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
         self.Hpad = bmat([[pad,None,None],[None,H,None],[None,None,pad]])
+
+    def generate_graph(self):
+        from aux import graph_from_coords
+        self.graph,self.tuple_of_coords = graph_from_coords(self,self.raw_coords)
+
+    def add_contacts_to_graph(self):
+        for contact in self.contacts:
+            contact.names = set()
+            contact_tuple= tuple(zip(contact[0],contact[1]))
+            for initial_tuple in contact_tuple:
+                initial_name = self.tuple_of_coords.index(initial_tuple)
+                contact.names.add(initial_name)
+                for partner_tuple in contact_tuple:
+                    partner_name = self.tuple_of_coords.index(partner_tuple)
+                    self.graph.add_edge(initial_name,partner_name)
+
+
+    def permute_graph(self):
+        self.graph = self.graph
+
+    def hamiltonian_from_graph(self):
+        from networkx import to_scipy_sparse_matrix
+        self.H = to_scipy_sparse_matrix(self.graph)
 
     def fermifunction(self, E_tot, mu):
         """ Simple Fermifunction """
@@ -486,8 +511,6 @@ class Model:
         rrgm_out = self.dorrgm(energy)
         G_pq = self.e**2/(self.h*2*pi)*transmission(rrgm_out)
         return G_pq
-
-
 
     def dolrgm(self,energy):
         from aux import SparseBlocks
