@@ -1,0 +1,2 @@
+backend 		: GTKAgg
+image.interpolation 	: nearest
