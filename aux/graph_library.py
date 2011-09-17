@@ -34,7 +34,7 @@ Breadth First Search.
 D. Eppstein, May 2007.
 """
 
-def BreadthFirstLevels(G,root,end,level=None):
+def BreadthFirstLevels(G,root,end=None,level=None):
     # TODO speed up
     """
     Generate a sequence of bipartite directed graphs, each consisting
@@ -46,7 +46,10 @@ def BreadthFirstLevels(G,root,end,level=None):
     visited = set()
     currentLevel = set(root)
     count = 0
-    end = set(end)
+    if end is not None:
+        end = set(end)
+    else:
+        end = set()
     while currentLevel:
         #from pudb import set_trace; set_trace()
         for v in currentLevel:                                  #combine in visited = set(currentLevel)
@@ -75,4 +78,25 @@ def colorarray_from_levelset(instance,levelset):
             colorarray[instance.tuple_of_coords[j]] = color
         color+=1
     return colorarray
+
+def bisect(graph,Ni,vleft,vright):
+    if Ni == 1: return graph
+    Ni1 = Ni/2
+    Ni2 = Ni-Ni/2
+    BreadthFirstLevels(graph,vleft,level=Ni1
+
+
+def blocktridiagonalize(instance):
+    instance.generate_graph()
+    #instance.add_contacts_to_graph()
+    levelSet = BreadthFirstLevels(instance.graph,instance.contacts[0].names,instance.contacts[1].names)
+    N = len(levelSet)
+    Vleft  = instance.contacts[0].names
+    Vright = instance.contacts[1].names
+    G1 = instance.graph.copy()
+    G1.remove_nodes_from(Vleft)
+    G1.remove_nodes_from(Vright)
+    bisect(G1,N-2,Vleft,Vright)
+    return permuted_nodelist
+
 
