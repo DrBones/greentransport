@@ -83,19 +83,19 @@ def bisect(graph,Ni,vleft,vright):
     if Ni == 1: return graph
     Ni1 = Ni/2
     Ni2 = Ni-Ni/2
-    BreadthFirstLevels(graph,vleft,level=Ni1
+    Gi1 = BreadthFirstLevels(graph,vleft,level=Ni1)
+    Gi2 = BreadthFirstLevels(graph,vright,level=Ni2)
 
 
 def blocktridiagonalize(instance):
+    from matplotlib.cbook import flatten
     instance.generate_graph()
     #instance.add_contacts_to_graph()
     levelSet = BreadthFirstLevels(instance.graph,instance.contacts[0].names,instance.contacts[1].names)
     N = len(levelSet)
     Vleft  = instance.contacts[0].names
     Vright = instance.contacts[1].names
-    G1 = instance.graph.copy()
-    G1.remove_nodes_from(Vleft)
-    G1.remove_nodes_from(Vright)
+    G1 = instance.graph.subgraph(set(instance.graph.nodes())- Vleft - Vright)
     bisect(G1,N-2,Vleft,Vright)
     return permuted_nodelist
 
