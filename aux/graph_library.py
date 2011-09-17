@@ -29,14 +29,12 @@ def graph_from_coords(instance,coords):
             print 'No node below node: ',(idx)
     return graph, tuple_of_coords
 
-"""BFS.py
-
-Breadth First Search. See also LexBFS.py.
-
+"""
+Breadth First Search.
 D. Eppstein, May 2007.
 """
 
-def BreadthFirstLevels(G,root,level=None):
+def BreadthFirstLevels(G,root,end,level=None):
     # TODO speed up
     """
     Generate a sequence of bipartite directed graphs, each consisting
@@ -48,18 +46,33 @@ def BreadthFirstLevels(G,root,level=None):
     visited = set()
     currentLevel = set(root)
     count = 0
+    end = set(end)
     while currentLevel:
         #from pudb import set_trace; set_trace()
         for v in currentLevel:                                  #combine in visited = set(currentLevel)
             visited.add(v)
         nextLevel = set()
-        levelGraph = dict([(v,set()) for v in currentLevel])    #not needed
+        #levelGraph = dict([(v,set()) for v in currentLevel])    #not needed
         for v in currentLevel:
             for w in G[v]:
                 if w not in visited:
-                    levelGraph[v].add(w)                        #not needed
+                    #levelGraph[v].add(w)                        #not needed
                     nextLevel.add(w)
         yield currentLevel
+        if (end & nextLevel):
+            yield  set(G.nodes())-visited
+            break
         currentLevel = nextLevel
         if count == level: break
         count +=1
+
+def colorarray_from_levelset(instance,levelset):
+    from numpy import zeros
+    colorarray = zeros(instance.wafer.shape)
+    color = 0
+    for i in levelset:
+        for j in i:
+            colorarray[instance.tuple_of_coords[j]] = color
+        color+=1
+    return colorarray
+
