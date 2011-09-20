@@ -1,3 +1,4 @@
+from numpy import inf
 def graph_from_array(arr):
     import networkx as nx
     g  = nx.Graph()
@@ -32,11 +33,13 @@ def graph_from_coords(instance,coords):
 """
 Breadth First Search.
 D. Eppstein, May 2007.
+modified by
+J. Siegl, Sep 2011.
 """
 
-def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None):
+def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None,max_nodes=inf):
     # TODO speed up
-    """ 
+    """
     Generate a sequence of bipartite directed graphs, each consisting
     of the edges from level i to level i+1 of G. Edges that connect
     vertices within the same level are not included in the output.
@@ -45,6 +48,7 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None):
     """
     visited = set(locked_nodes)
     currentLevel = set(root)
+    nodes_distributed=0
     count = 1
     if end is not None:
         end = set(end)
@@ -62,10 +66,14 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None):
                     #levelG]ra2ph[v].add(w)                        #not needed
                     nextLevel.add(w)
         if not nextLevel: break
-        yield nextLevel
         if (end & nextLevel):
-            yield  set(graph.nodes())-visited
+            rest_of_nodes = set(graph.nodes())-visited
+            nodes_distributed += len(rest_of_nodes)
+            yield rest_of_nodes
             break
+        nodes_distributed += len(nextLevel)
+        yield nextLevel
+        if nodes_distributed >= max_nodes:break
         currentLevel = nextLevel
         if count == level: break
         count +=1
@@ -83,6 +91,7 @@ def colorarray_from_levelset(instance,levelset):
 def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
     # TODO distribute leftover nodes
     from matplotlib.cbook import flatten
+    from numpy import floor
 #return when at the end of the recursive bisection and no more levels to bisect
     if Ni == 1: return [nodes_to_bisect]
 #calculate how many levels are in any of the two parts. Caution: Integer division!
@@ -90,10 +99,22 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
     Ni2 = Ni-Ni/2
 #lock all nodes except those to bisect
     locked_set = set(graph.nodes())-nodes_to_bisect
-    nodes_i1 = set(flatten(BreadthFirstLevels(graph,nodes_left,locked_nodes=locked_set,level=Ni1)))
-    locked_set |= nodes_i1
-    nodes_i2 = set(flatten(BreadthFirstLevels(graph,nodes_right,locked_nodes=locked_set,level=Ni2)))
-    return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2,locked_set)+ bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right,locked_set)
+    nodes_i1_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_left,locked_nodes=locked_set,level=Ni1)))
+    locked_set |= nodes_i1_bfs
+    nodes_i2_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_right,locked_nodes=locked_set,level=Ni2)))
+    locked_set |= nodes_i2_bfs
+    max_nodes_i1 = floor(Ni1*len(nodes_to_bisect)/float(Ni))
+    max_nodes_i2 = len(nodes_to_bisect)-max_nodes_i1
+    max_nodes_i1_extra = max_nodes_i1-len(nodes_i1_bfs)
+    max_nodes_i2_extra = max_nodes_i2-len(nodes_i2_bfs)
+    if len(nodes_i1_bfs) <= len(nodes_i2_bfs):
+        nodes_i1 = nodes_i1_bfs | set(flatten(BreadthFirstLevels(graph,root=nodes_i1_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i1_extra)))
+        nodes_i2 = nodes_i2_bfs | (nodes_to_bisect-nodes_i1)
+    else:
+        nodes_i2 = nodes_i2_bfs | set(flatten(BreadthFirstLevels(graph,root=nodes_i2_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i2_extra)))
+        nodes_i1 = nodes_i1_bfs | (nodes_to_bisect-nodes_i2)
+
+    return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2)+ bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
 
 def blocktridiagonalize(instance):
     import pudb; pudb.set_trace()
