@@ -34,18 +34,18 @@ Breadth First Search.
 D. Eppstein, May 2007.
 """
 
-def BreadthFirstLevels(G,root,end=None,level=None):
+def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None):
     # TODO speed up
-    """
+    """ 
     Generate a sequence of bipartite directed graphs, each consisting
     of the edges from level i to level i+1 of G. Edges that connect
     vertices within the same level are not included in the output.
     The vertices in each level can be listed by iterating over each
     output graph.
     """
-    visited = set()
+    visited = set(locked_nodes)
     currentLevel = set(root)
-    count = 0
+    count = 1
     if end is not None:
         end = set(end)
     else:
@@ -57,13 +57,14 @@ def BreadthFirstLevels(G,root,end=None,level=None):
         nextLevel = set()
         #levelGraph = dict([(v,set()) for v in currentLevel])    #not needed
         for v in currentLevel:
-            for w in G[v]:
+            for w in graph[v]:
                 if w not in visited:
-                    #levelGraph[v].add(w)                        #not needed
+                    #levelG]ra2ph[v].add(w)                        #not needed
                     nextLevel.add(w)
-        yield currentLevel
+        if not nextLevel: break
+        yield nextLevel
         if (end & nextLevel):
-            yield  set(G.nodes())-visited
+            yield  set(graph.nodes())-visited
             break
         currentLevel = nextLevel
         if count == level: break
@@ -79,24 +80,29 @@ def colorarray_from_levelset(instance,levelset):
         color+=1
     return colorarray
 
-def bisect(graph,Ni,vleft,vright):
-    if Ni == 1: return graph
+def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
+    # TODO distribute leftover nodes
+    from matplotlib.cbook import flatten
+#return when at the end of the recursive bisection and no more levels to bisect
+    if Ni == 1: return [nodes_to_bisect]
+#calculate how many levels are in any of the two parts. Caution: Integer division!
     Ni1 = Ni/2
     Ni2 = Ni-Ni/2
-    Gi1 = BreadthFirstLevels(graph,vleft,level=Ni1)
-    Gi2 = BreadthFirstLevels(graph,vright,level=Ni2)
-
+#lock all nodes except those to bisect
+    locked_set = set(graph.nodes())-nodes_to_bisect
+    nodes_i1 = set(flatten(BreadthFirstLevels(graph,nodes_left,locked_nodes=locked_set,level=Ni1)))
+    locked_set |= nodes_i1
+    nodes_i2 = set(flatten(BreadthFirstLevels(graph,nodes_right,locked_nodes=locked_set,level=Ni2)))
+    return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2,locked_set)+ bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right,locked_set)
 
 def blocktridiagonalize(instance):
-    from matplotlib.cbook import flatten
+    import pudb; pudb.set_trace()
     instance.generate_graph()
-    #instance.add_contacts_to_graph()
-    levelSet = BreadthFirstLevels(instance.graph,instance.contacts[0].names,instance.contacts[1].names)
-    N = len(levelSet)
-    Vleft  = instance.contacts[0].names
-    Vright = instance.contacts[1].names
-    G1 = instance.graph.subgraph(set(instance.graph.nodes())- Vleft - Vright)
-    bisect(G1,N-2,Vleft,Vright)
-    return permuted_nodelist
-
-
+    instance.add_contacts_to_graph()
+    levelSet = BreadthFirstLevels(instance.graph,root=instance.contacts[0].names,end=instance.contacts[1].names)
+    N = len(list(levelSet))
+    nodes_left  = instance.contacts[0].names
+    nodes_right = instance.contacts[1].names
+    nodes_to_bisect = set(instance.graph.nodes())-nodes_left-nodes_right
+    level_list = bisect(instance.graph,N,nodes_left,nodes_to_bisect,nodes_right)
+    return level_list

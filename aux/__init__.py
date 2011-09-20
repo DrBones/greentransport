@@ -13,3 +13,5 @@ from custom_func import sphericalPot
 from graph_library import graph_from_coords
 from graph_library import BreadthFirstLevels
 from graph_library import colorarray_from_levelset
+from graph_library import bisect
+from graph_library import blocktridiagonalize
