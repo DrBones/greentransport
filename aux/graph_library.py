@@ -49,13 +49,18 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None,max_nodes=
     visited = set(locked_nodes)
     currentLevel = set(root)
     nodes_distributed=0
-    count = 1
+    count = 0
     if end is not None:
         end = set(end)
     else:
         end = set()
     while currentLevel:
         #from pudb import set_trace; set_trace()
+        if (end & currentLevel):
+            rest_of_nodes = set(graph.nodes())-visited
+            nodes_distributed += len(rest_of_nodes)
+            yield rest_of_nodes
+            break
         for v in currentLevel:                                  #combine in visited = set(currentLevel)
             visited.add(v)
         nextLevel = set()
@@ -65,17 +70,11 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None,max_nodes=
                 if w not in visited:
                     #levelG]ra2ph[v].add(w)                        #not needed
                     nextLevel.add(w)
-        if not nextLevel: break
-        if (end & nextLevel):
-            rest_of_nodes = set(graph.nodes())-visited
-            nodes_distributed += len(rest_of_nodes)
-            yield rest_of_nodes
-            break
-        nodes_distributed += len(nextLevel)
-        yield nextLevel
+        nodes_distributed += len(currentLevel)
+        yield currentLevel
         if nodes_distributed >= max_nodes:break
-        currentLevel = nextLevel
         if count == level: break
+        currentLevel = nextLevel
         count +=1
 
 def colorarray_from_levelset(instance,levelset):
@@ -99,22 +98,22 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
     Ni2 = Ni-Ni/2
 #lock all nodes except those to bisect
     locked_set = set(graph.nodes())-nodes_to_bisect
-    nodes_i1_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_left,locked_nodes=locked_set,level=Ni1)))
+    nodes_i1_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_left,locked_nodes=locked_set,level=Ni1)))-nodes_left
     locked_set |= nodes_i1_bfs
-    nodes_i2_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_right,locked_nodes=locked_set,level=Ni2)))
+    nodes_i2_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_right,locked_nodes=locked_set,level=Ni2)))-nodes_right
     locked_set |= nodes_i2_bfs
     max_nodes_i1 = floor(Ni1*len(nodes_to_bisect)/float(Ni))
     max_nodes_i2 = len(nodes_to_bisect)-max_nodes_i1
-    max_nodes_i1_extra = max_nodes_i1-len(nodes_i1_bfs)
-    max_nodes_i2_extra = max_nodes_i2-len(nodes_i2_bfs)
+    # max_nodes_i1_extra = max_nodes_i1-len(nodes_i1_bfs)
+    # max_nodes_i2_extra = max_nodes_i2-len(nodes_i2_bfs)
     if len(nodes_i1_bfs) <= len(nodes_i2_bfs):
-        nodes_i1 = nodes_i1_bfs | set(flatten(BreadthFirstLevels(graph,root=nodes_i1_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i1_extra)))
+        nodes_i1 = set(flatten(BreadthFirstLevels(graph,root=nodes_i1_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i1)))
         nodes_i2 = nodes_i2_bfs | (nodes_to_bisect-nodes_i1)
     else:
-        nodes_i2 = nodes_i2_bfs | set(flatten(BreadthFirstLevels(graph,root=nodes_i2_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i2_extra)))
+        nodes_i2 = set(flatten(BreadthFirstLevels(graph,root=nodes_i2_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i2)))
         nodes_i1 = nodes_i1_bfs | (nodes_to_bisect-nodes_i2)
 
-    return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2)+ bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
+    return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2) + bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
 
 def blocktridiagonalize(instance):
     import pudb; pudb.set_trace()
@@ -125,5 +124,5 @@ def blocktridiagonalize(instance):
     nodes_left  = instance.contacts[0].names
     nodes_right = instance.contacts[1].names
     nodes_to_bisect = set(instance.graph.nodes())-nodes_left-nodes_right
-    level_list = bisect(instance.graph,N,nodes_left,nodes_to_bisect,nodes_right)
+    level_list = bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right)
     return level_list
