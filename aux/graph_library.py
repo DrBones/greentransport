@@ -80,7 +80,7 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None,max_nodes=
 def colorarray_from_levelset(instance,levelset):
     from numpy import zeros
     colorarray = zeros(instance.wafer.shape)
-    color = 0
+    color = 1
     for i in levelset:
         for j in i:
             colorarray[instance.tuple_of_coords[j]] = color
@@ -124,5 +124,5 @@ def blocktridiagonalize(instance):
     nodes_left  = instance.contacts[0].names
     nodes_right = instance.contacts[1].names
     nodes_to_bisect = set(instance.graph.nodes())-nodes_left-nodes_right
-    level_list = bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right)
+    level_list = [nodes_left] +bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
     return level_list
