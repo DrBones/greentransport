@@ -49,7 +49,7 @@ class Model:
         self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
         self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
         #self.stepgrid(2,2)
-        self.naivepc()
+        self.circular_qpc()
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
@@ -60,7 +60,7 @@ class Model:
             [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
             [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
 
-    def naivepc(self,shift=0,radius=1,scale=0):
+    def circular_qpc(self,shift=0,radius=1,scale=0):
         from scipy import ogrid
         import aux
         size_x = self.wafer.shape[0]
@@ -184,10 +184,6 @@ class Model:
                 for partner_tuple in contact_tuple:
                     partner_name = self.tuple_of_coords.index(partner_tuple)
                     self.graph.add_edge(initial_name,partner_name)
-
-
-    def permute_graph(self):
-        self.graph = self.graph
 
     def hamiltonian_from_graph(self):
         from networkx import to_scipy_sparse_matrix

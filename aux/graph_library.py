@@ -77,13 +77,13 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None,max_nodes=
         currentLevel = nextLevel
         count +=1
 
-def colorarray_from_levelset(instance,levelset):
+def colorarray_from_levelstructure(instance,levelstructure):
     from numpy import zeros
     colorarray = zeros(instance.wafer.shape)
     color = 1
-    for i in levelset:
-        for j in i:
-            colorarray[instance.tuple_of_coords[j]] = color
+    for level in levelstructure:
+        for node in level:
+            colorarray[instance.tuple_of_coords[node]] = color
         color+=1
     return colorarray
 
@@ -104,8 +104,6 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
     locked_set |= nodes_i2_bfs
     max_nodes_i1 = floor(Ni1*len(nodes_to_bisect)/float(Ni))
     max_nodes_i2 = len(nodes_to_bisect)-max_nodes_i1
-    # max_nodes_i1_extra = max_nodes_i1-len(nodes_i1_bfs)
-    # max_nodes_i2_extra = max_nodes_i2-len(nodes_i2_bfs)
     if len(nodes_i1_bfs) <= len(nodes_i2_bfs):
         nodes_i1 = set(flatten(BreadthFirstLevels(graph,root=nodes_i1_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i1)))
         nodes_i2 = nodes_i2_bfs | (nodes_to_bisect-nodes_i1)
@@ -115,14 +113,14 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
 
     return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2) + bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
 
-def blocktridiagonalize(instance):
+def balanced_levelstructure_from_instance(instance):
     import pudb; pudb.set_trace()
     instance.generate_graph()
     instance.add_contacts_to_graph()
-    levelSet = BreadthFirstLevels(instance.graph,root=instance.contacts[0].names,end=instance.contacts[1].names)
-    N = len(list(levelSet))
+    BFS_levelstructure = BreadthFirstLevels(instance.graph,root=instance.contacts[0].names,end=instance.contacts[1].names)
+    N = len(list(BFS_levelstructure))
     nodes_left  = instance.contacts[0].names
     nodes_right = instance.contacts[1].names
     nodes_to_bisect = set(instance.graph.nodes())-nodes_left-nodes_right
-    level_list = [nodes_left] +bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
-    return level_list
+    levelstructure = [nodes_left] +bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
+    return levelstructure

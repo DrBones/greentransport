@@ -46,7 +46,7 @@ def qpc_opening_sweep(instance,name=''):
         print i
         shift = i/2.5
         print "Setting up Potential Landscape"
-        instance.naivepc(shift,radius=30,scale=100)
+        instance.circular_qpc(shift,radius=30,scale=100)
         print "Starting to generate Hamiltonian"
         instance.setmode('normal')
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
@@ -157,7 +157,7 @@ def sweep(instance,name=''):
         print i
         shift = 100+i
         print "Setting up Potential Landscape"
-        instance.naivepc(shift,radius=30,scale=100)
+        instance.circular_qpc(shift,radius=30,scale=100)
         print "Starting to generate Hamiltonian"
         instance.setmode('normal')
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(now.hour, now.minute,now.second)
