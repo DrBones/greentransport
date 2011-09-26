@@ -171,8 +171,8 @@ class Model:
         self.Hpad = bmat([[pad,None,None],[None,H,None],[None,None,pad]])
 
     def generate_graph(self):
-        from aux import graph_from_coords
-        self.graph,self.tuple_of_coords = graph_from_coords(self,self.raw_coords)
+        from aux import digraph_from_coords
+        self.graph,self.tuple_of_coords = digraph_from_coords(self,self.raw_coords)
 
     def add_contacts_to_graph(self):
         for contact in self.contacts:

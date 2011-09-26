@@ -149,17 +149,22 @@ def spingraph_from_graph(instance,graph):
     even_graph = nx.relabel_nodes(graph, lambda x:x*2)
     odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
     union_graph  = nx.union(even_graph, odd_graph)
+    from pudb import set_trace; set_trace()
     for node in xrange(1,union_graph.order(),2):
-         for partner in sorted(union_graph[node].keys()):
+         for partner in union_graph[node].keys():
              if partner < node:             # is either top or left neighbour
                  if partner == node-2:      # is left neighbour
                      union_graph.add_edge(node-1,partner,weight=-instance.tso)
+                     union_graph.add_edge(partner,node-1,weight=-instance.tso)
                  else:
                      union_graph.add_edge(node-1,partner,weight=1j*instance.tso)
+                     union_graph.add_edge(partner,node-1,weight=1j*instance.tso)
              if partner > node:             # is either right or bottom neighbour
                  if partner == node+2:      # is right neighbour
                      union_graph.add_edge(node-1,partner,weight=instance.tso)
+                     union_graph.add_edge(partner,node-1,weight=instance.tso)
                  else:
                      union_graph.add_edge(node-1,partner,weight=-1j*instance.tso)
+                     union_graph.add_edge(partner,node-1,weight=-1j*instance.tso)
 
     return union_graph
