@@ -1,4 +1,5 @@
 from numpy import inf
+import networkx as nx
 def graph_from_array(arr):
     import networkx as nx
     g  = nx.Graph()
@@ -15,11 +16,9 @@ def graph_from_array(arr):
 
 def graph_from_coords(instance,coords):
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
-    import networkx as nx
     graph  = nx.Graph()
     tuple_of_coords = tuple(zip(coords[0],coords[1]))
     for idx in range(len(tuple_of_coords)-1): #-1 so i dont check the item after the last
-        graph.add_edge(idx,idx,weight=4*instance.t0)
         if tuple_of_coords[idx][1]+1 == tuple_of_coords[idx+1][1]:
             graph.add_edge(idx,idx+1,neightbour_in_same='row')
         try:
@@ -30,6 +29,27 @@ def graph_from_coords(instance,coords):
             print 'No node below node: ',(idx)
     return graph, tuple_of_coords
 
+
+def digraph_from_coords(instance,coords):
+# TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
+    graph  = nx.DiGraph()
+    tuple_of_coords = tuple(zip(coords[0],coords[1]))
+    for idx in range(len(tuple_of_coords)-1): #-1 so i dont check the item after the last
+        if tuple_of_coords[idx][1]+1 == tuple_of_coords[idx+1][1]:
+            graph.add_edge(idx,idx+1,weight=-instance.t0,neightbour_in_same='row')
+            graph.add_edge(idx+1,idx,weight=-instance.t0,neightbour_in_same='row')
+        try:
+            graph.add_edge(idx,
+                           tuple_of_coords.index((tuple_of_coords[idx][0]+1, tuple_of_coords[idx][1])),
+                           weight=-instance.t0,
+                           neighbour_in_same='column')
+            graph.add_edge(tuple_of_coords.index((tuple_of_coords[idx][0]+1, tuple_of_coords[idx][1])),
+                           idx,
+                           weight=-instance.t0,
+                           neighbour_in_same='column')
+        except ValueError:
+            print 'No node below node: ',(idx)
+    return graph, tuple_of_coords
 """
 Breadth First Search.
 D. Eppstein, May 2007.
@@ -124,3 +144,22 @@ def balanced_levelstructure_from_instance(instance):
     nodes_to_bisect = set(instance.graph.nodes())-nodes_left-nodes_right
     levelstructure = [nodes_left] +bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
     return levelstructure
+
+def spingraph_from_graph(instance,graph):
+    even_graph = nx.relabel_nodes(graph, lambda x:x*2)
+    odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
+    union_graph  = nx.union(even_graph, odd_graph)
+    for node in xrange(1,union_graph.order(),2):
+         for partner in sorted(union_graph[node].keys()):
+             if partner < node:             # is either top or left neighbour
+                 if partner == node-2:      # is left neighbour
+                     union_graph.add_edge(node-1,partner,weight=-instance.tso)
+                 else:
+                     union_graph.add_edge(node-1,partner,weight=1j*instance.tso)
+             if partner > node:             # is either right or bottom neighbour
+                 if partner == node+2:      # is right neighbour
+                     union_graph.add_edge(node-1,partner,weight=instance.tso)
+                 else:
+                     union_graph.add_edge(node-1,partner,weight=-1j*instance.tso)
+
+    return union_graph
