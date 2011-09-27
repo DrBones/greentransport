@@ -135,8 +135,8 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
 
 def balanced_levelstructure_from_instance(instance):
     import pudb; pudb.set_trace()
-    instance.generate_graph()
-    instance.add_contacts_to_graph()
+    #instance.generate_graph()
+    #instance.add_contacts_to_graph()
     BFS_levelstructure = BreadthFirstLevels(instance.graph,root=instance.contacts[0].names,end=instance.contacts[1].names)
     N = len(list(BFS_levelstructure))
     nodes_left  = instance.contacts[0].names
@@ -150,7 +150,9 @@ def spingraph_from_graph(instance,graph):
     odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
     union_graph  = nx.union(even_graph, odd_graph)
     for contact in instance.contacts:
-        for contact_node in list(contact.names):
+        list_of_nodenames = list(contact.names)
+        contact.names=set()
+        for contact_node in list_of_nodenames:
             contact.names.add(contact_node*2)
             contact.names.add(2*contact_node+1)
     # from pudb import set_trace; set_trace()
@@ -172,5 +174,4 @@ def spingraph_from_graph(instance,graph):
                  else:
                      union_graph.add_edge(node-1,partner,weight=-1j*instance.tso)
                      union_graph.add_edge(partner,node-1,weight=-1j*instance.tso)
-
-    return union_graph
+    instance.graph = union_graph

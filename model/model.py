@@ -173,17 +173,18 @@ class Model:
     def generate_graph(self):
         from aux import digraph_from_coords
         self.graph,self.tuple_of_coords = digraph_from_coords(self,self.raw_coords)
+        self.add_nodenames_to_contacts()
 
-    def add_contacts_to_graph(self):
+    def add_nodenames_to_contacts(self):
         for contact in self.contacts:
             contact.names = set()
             contact_tuple= tuple(zip(contact[0],contact[1]))
             for initial_tuple in contact_tuple:
                 initial_name = self.tuple_of_coords.index(initial_tuple)
                 contact.names.add(initial_name)
-                for partner_tuple in contact_tuple:
-                    partner_name = self.tuple_of_coords.index(partner_tuple)
-                    self.graph.add_edge(initial_name,partner_name)
+                #for partner_tuple in contact_tuple:
+                #    partner_name = self.tuple_of_coords.index(partner_tuple)
+                #    self.graph.add_edge(initial_name,partner_name)
 
     def hamiltonian_from_graph(self):
         from networkx import to_scipy_sparse_matrix
