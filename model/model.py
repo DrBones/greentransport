@@ -129,6 +129,7 @@ class Model:
     def spinH(self):
         from scipy.sparse import lil_matrix, triu,bmat
         from scipy import complex128, exp, pi
+# TODO just changed offdiagonal tso sign, this seems more correct
         Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
         Ndim = 2*self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
@@ -145,14 +146,14 @@ class Model:
                         if self.wafer[row,column+1] > 0 :
                             H[i,i+1] = H[i+ystride,i+1+ystride] = -self.t0
                             if self.wafer[row,column+1] == 239:
-                                H[i,i+1+ystride] = -self.tso
-                                H[i+1,i+ystride] = self.tso
+                                H[i,i+1+ystride] = self.tso
+                                H[i+1,i+ystride] = -self.tso
                         if row == 0 and self.contacts[0].SO == True:
-                            H[i,i+1+ystride] = -self.tso
-                            H[i+1,i+ystride] = self.tso
+                            H[i,i+1+ystride] = self.tso
+                            H[i+1,i+ystride] = -self.tso
                         if row == self.wafer.shape[0]-1 and self.contacts[1].SO == True:
-                            H[i,i+1+ystride] = -self.tso
-                            H[i+1,i+ystride] = self.tso
+                            H[i,i+1+ystride] = self.tso
+                            H[i+1,i+ystride] = -self.tso
                     if row == self.wafer.shape[0]-2 and self.contacts[1].SO == True:
                         H[i,i+3*ystride] = H[i+ystride,i+2*ystride] = -1j*self.tso
                     if row+1 == self.wafer.shape[0]: continue
@@ -171,6 +172,7 @@ class Model:
         self.Hpad = bmat([[pad,None,None],[None,H,None],[None,None,pad]])
 
     def generate_graph(self):
+        # TODO make lazy initialized
         from aux import digraph_from_coords
         self.graph,self.tuple_of_coords = digraph_from_coords(self,self.raw_coords)
         self.add_nodenames_to_contacts()
@@ -186,9 +188,45 @@ class Model:
                 #    partner_name = self.tuple_of_coords.index(partner_tuple)
                 #    self.graph.add_edge(initial_name,partner_name)
 
+    def generate_balanced_levelstructure(self):
+        from aux import BreadthFirstLevels, bisect
+        #import pudb; pudb.set_trace()
+        BFS_levelstructure = BreadthFirstLevels(self.graph,root=self.contacts[0].names,end=self.contacts[1].names)
+        N = len(list(BFS_levelstructure))
+        nodes_left  = self.contacts[0].names
+        nodes_right = self.contacts[1].names
+        nodes_to_bisect = set(self.graph.nodes())-nodes_left-nodes_right
+        levelstructure = [nodes_left] + bisect(self.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
+        self.levelstructure = levelstructure
+
     def hamiltonian_from_graph(self):
+        from numpy import complex128
         from networkx import to_scipy_sparse_matrix
-        self.H = to_scipy_sparse_matrix(self.graph)
+        from matplotlib.cbook import flatten
+        if ('levelstructure' in dir(self)):
+            self.nodelist =list(sorted(flatten(self.levelstructure)))
+            self.block_sizes = [ len(level) for level in self.levelstructure]
+            self.H = to_scipy_sparse_matrix(self.graph,nodelist=self.nodelist,dtype=complex128)
+        else:
+            self.H = to_scipy_sparse_matrix(self.graph,dtype=complex128)
+
+    def update_hamil_diag(self):
+        from numpy import repeat,array
+        def serial_pot(self):
+            """ Generator expression yielding the base potential
+            4*t0 plus the onsite potential taken from self.potenital_grid.
+            No offsetting is done! Adapt Potential of canvas to fit device """
+            if self.multi == 2:
+                coordinate_array = repeat(self.tuple_of_coords,2,axis=0)
+            else:
+                coordinate_array = array(self.tuple_of_coords)
+
+            #takes levelstructure permutations into account
+            coordinates = coordinate_array[self.nodelist]
+            for xy in coordinates:
+                yield 4*self.t0+self.potential_grid[tuple(xy)]
+        self.H.setdiag(list(serial_pot(self)))
+
 
     def fermifunction(self, E_tot, mu):
         """ Simple Fermifunction """
@@ -263,11 +301,11 @@ class Model:
         from aux import SparseBlocks
         from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray,split
         E= E+self.zplus
-        Ndim = self.canvas[0]*self.canvas[1]
+        Ndim = len(self.active_coords)
         block=ind_contact.shape[1]
         Hblock = SparseBlocks(self.H,self.block_sizes)
         self.Hblock = Hblock
-        I=eye(self.wafer.shape[1]*self.multi)
+        I=eye(block*self.multi)
         Zeros = zeros((block*self.multi,block*self.multi))
         #if ind_contact.SO is False:
         #    H00 = 4*self.t0*eye(block) -self.t0*eye(block,k=1) -self.t0*eye(block,k=-1)
@@ -319,10 +357,10 @@ class Model:
         print 'SigaRet shape: ',SigmaRet.shape
         sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         print 'sigma shape: ',sigma.shape
-        if ind_contact[0].min() == 0:
+        if ind_contact.index == 0:
             sigma[0:SigmaRet.shape[0], 0:SigmaRet.shape[1]] = SigmaRet
             self.sigma1=sigma
-        elif ind_contact[0].max() == self.wafer.shape[0]-1:
+        elif ind_contact.index == 1:
             sigma[-SigmaRet.shape[0]:, -SigmaRet.shape[1]:] = SigmaRet
             self.sigma2=sigma
         #import pudb; pudb.set_trace()
@@ -390,11 +428,12 @@ class Model:
     def spinA(self,E_rel):
         from scipy.sparse import eye
         from scipy import complex128
-        number_of_nodes = self.block_sizes[1]*len(self.block_sizes)
+        number_of_nodes = len(self.active_coords)
         #global sigma_l,sigma_r,sigma_in_l,sigma_in_r
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
         if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
+            print 'Generating new selfnergy matrices'
             sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
             self.sigma_l = sigma_l
             #sigma_l = self.transfersigma(self.contacts[0], E_tot)
@@ -549,9 +588,27 @@ class Model:
     def setmode(self,mode='normal'):
         if mode == 'normal':
             self.multi = 1
+            self.order = 'even'
             self.block_sizes=[self.wafer.shape[1]*self.multi]*self.wafer.shape[0]
             self.simpleH()
         elif mode == 'spin':
             self.multi = 2
+            self.order = 'even'
             self.block_sizes=[self.wafer.shape[1]*self.multi]*self.wafer.shape[0]
             self.spinH()
+        elif mode == 'graph':
+            self.multi = 1
+            self.order = 'even'
+            self.generate_graph()
+            self.generate_balanced_levelstructure()
+            self.hamiltonian_from_graph()
+            self.update_hamil_diag()
+        elif mode == 'spin_graph':
+            from aux import spingraph_from_graph
+            self.multi = 2
+            self.order = 'odd'
+            self.generate_graph()
+            spingraph_from_graph(self,self.graph)
+            self.generate_balanced_levelstructure()
+            self.hamiltonian_from_graph()
+            self.update_hamil_diag()

@@ -18,13 +18,14 @@ def main():
     print "This is spinr, please import as module and supply canvas as: \n spinr.init_with('canvas.bmp')"
 
 def init_with(canvas):
-    global model
+    #global model
     world = World(canvas)
     model = Model(world)
     print 'Size of the world: ', world.canvas
     print 'Fermi energy set: ',model.Efermi
     print 'Bias appied: ', model.potential_drop
     print 'Magnetic field on init: ', model.BField
+    return model
 
 def qpc_opening_sweep(instance,name=''):
     from scipy import linspace,zeros,array,sum,trace,pi

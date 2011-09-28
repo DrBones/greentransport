@@ -133,18 +133,6 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
 
     return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2) + bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
 
-def balanced_levelstructure_from_instance(instance):
-    import pudb; pudb.set_trace()
-    #instance.generate_graph()
-    #instance.add_contacts_to_graph()
-    BFS_levelstructure = BreadthFirstLevels(instance.graph,root=instance.contacts[0].names,end=instance.contacts[1].names)
-    N = len(list(BFS_levelstructure))
-    nodes_left  = instance.contacts[0].names
-    nodes_right = instance.contacts[1].names
-    nodes_to_bisect = set(instance.graph.nodes())-nodes_left-nodes_right
-    levelstructure = [nodes_left] +bisect(instance.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
-    return levelstructure
-
 def spingraph_from_graph(instance,graph):
     even_graph = nx.relabel_nodes(graph, lambda x:x*2)
     odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
@@ -156,22 +144,23 @@ def spingraph_from_graph(instance,graph):
             contact.names.add(contact_node*2)
             contact.names.add(2*contact_node+1)
     # from pudb import set_trace; set_trace()
-    for node in xrange(1,union_graph.order(),2):
-         for partner in union_graph[node].keys():
-             if partner % 2 ==0:
-                 continue
-             if partner < node:             # is either top or left neighbour
-                 if partner == node-2:      # is left neighbour
-                     union_graph.add_edge(node-1,partner,weight=-instance.tso)
-                     union_graph.add_edge(partner,node-1,weight=-instance.tso)
-                 else:
-                     union_graph.add_edge(node-1,partner,weight=1j*instance.tso)
-                     union_graph.add_edge(partner,node-1,weight=1j*instance.tso)
-             if partner > node:             # is either right or bottom neighbour
-                 if partner == node+2:      # is right neighbour
-                     union_graph.add_edge(node-1,partner,weight=instance.tso)
-                     union_graph.add_edge(partner,node-1,weight=instance.tso)
-                 else:
-                     union_graph.add_edge(node-1,partner,weight=-1j*instance.tso)
-                     union_graph.add_edge(partner,node-1,weight=-1j*instance.tso)
+    for spin_down_node in xrange(1,union_graph.order(),2):
+        spin_up_node = spin_down_node -1
+        for spin_down_node_neighbour in union_graph[spin_down_node].keys():
+            if spin_down_node_neighbour % 2 ==0:
+                continue
+            if spin_down_node_neighbour < spin_down_node:             # is either top or left neighbour
+                if spin_down_node_neighbour == spin_down_node-2:      # is left neighbour
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=-instance.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=-instance.tso)
+                else:
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=+1j*instance.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=-1j*instance.tso)
+            if spin_down_node_neighbour > spin_down_node:             # is either right or bottom neighbour
+                if spin_down_node_neighbour == spin_down_node+2:      # is right neighbour
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=instance.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=instance.tso)
+                else:
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=-1j*instance.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=+1j*instance.tso)
     instance.graph = union_graph
