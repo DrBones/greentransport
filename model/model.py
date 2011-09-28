@@ -204,7 +204,8 @@ class Model:
         from networkx import to_scipy_sparse_matrix
         from matplotlib.cbook import flatten
         if ('levelstructure' in dir(self)):
-            self.nodelist =list(sorted(flatten(self.levelstructure)))
+            print 'using levelstructure information'
+            self.nodelist =list(flatten(self.levelstructure))
             self.block_sizes = [ len(level) for level in self.levelstructure]
             self.H = to_scipy_sparse_matrix(self.graph,nodelist=self.nodelist,dtype=complex128)
         else:
