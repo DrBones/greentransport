@@ -108,11 +108,10 @@ def colorarray_from_levelstructure(instance,levelstructure):
     return colorarray
 
 def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
-    # TODO distribute leftover nodes
     from matplotlib.cbook import flatten
     from numpy import floor
 #return when at the end of the recursive bisection and no more levels to bisect
-    if Ni == 1: return [nodes_to_bisect]
+    if Ni == 1: return [set(sorted(nodes_to_bisect))]
 #calculate how many levels are in any of the two parts. Caution: Integer division!
     Ni1 = Ni/2
     Ni2 = Ni-Ni/2
