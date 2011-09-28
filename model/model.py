@@ -452,7 +452,7 @@ class Model:
             sigma_in_l = self.sigma_in_l
             sigma_in_r = self.sigma_in_r
 
-        I =eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil')
+        I =eye(number_of_nodes*self.multi,number_of_nodes*self.multi,dtype=complex128, format='lil')
         self.lastenergy = E_rel
         print 'sigmainl',sigma_in_l.shape
         print 'sigmainr',sigma_in_r.shape
