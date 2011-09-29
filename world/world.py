@@ -1,8 +1,6 @@
 class World:
 
-    defaultatlas = 'canvas/wire70x30spinorbit.bmp'
-
-    def __init__(self, atlas=defaultatlas):
+    def __init__(self, atlas=None):
         self.atlas = atlas
         self.q = 1.6e-19 #Coulomb
         self.hbar = 6.58211928e-16 #eV * s
@@ -19,12 +17,12 @@ class World:
         """reads in bmp and generates contacts and other
         objects of interest"""
         from PIL import Image
-        from scipy import where, asarray, array, transpose,logical_or
+        from scipy import where, asarray, array, transpose,logical_or,logical_and
         from aux import Contact
         img = Image.open(self.atlas)
         arr = asarray(img)
         contacts = []
-        shades = [(109,119), (139,149), (169,179), (199,209)]
+        shades = [(103,115), (133,145), (163,175), (193,205)]
         contact_index = 0
         leads = []
         for shade in shades:
@@ -48,6 +46,7 @@ class World:
             contacts.append(a)
             contact_index +=1
         self.raw_coords = where(arr > 0)
+        self.raw_coords =logical_and(arr > 0,arr %5 ==0).nonzero()
         self.active_coords = transpose(self.raw_coords)
         self.wafer = arr
         self.canvas = arr.shape

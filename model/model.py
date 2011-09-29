@@ -384,6 +384,42 @@ class Model:
         #import pudb; pudb.set_trace()
         return sigma
 
+    def sigma_from_lead_graph(self,lead,E):
+        from scipy.linalg import inv,schur
+        from scipy.sparse import lil_matrix
+        from aux import SparseBlocks
+        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,split,asarray
+        E= E+self.zplus
+        graph, coords = lead
+        Ndim = len(self.active_coords)
+        block=graph.order()/2
+        I=eye(block*self.multi)
+        Zeros = zeros((block*self.multi,block*self.multi))
+        Hlead = self.nx.to_numpy_matrix(graph,dtype=complex128)
+        H00 = asarray(Hlead[:block,:block])
+        H01 = asarray(Hlead[:block,block:])
+        inv_H01 = inv(H01)
+        CompanionMatrix_array =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H01.conj().T))),hstack((I,Zeros))))
+        T,Z = schur(CompanionMatrix_array)
+        import pudb; pudb.set_trace()
+        if ind_contact.index == 0:
+            self.SigmaRet1 = SigmaRet
+            #temp = zeros((60,60),dtype=complex128)
+            #temp[30:60,30:60] =SigmaRet[:30,:30]
+            #SigmaRet=temp
+        else :
+            self.SigmaRet2 = SigmaRet
+        print 'SigaRet shape: ',SigmaRet.shape
+        sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
+        print 'sigma shape: ',sigma.shape
+        if ind_contact.index == 0:
+            sigma[0:SigmaRet.shape[0], 0:SigmaRet.shape[1]] = SigmaRet
+            self.sigma1=sigma
+        elif ind_contact.index == 1:
+            sigma[-SigmaRet.shape[0]:, -SigmaRet.shape[1]:] = SigmaRet
+            self.sigma2=sigma
+        return sigma
+
     def sigma(self, ind_contact, E, num_modes='all'):
         """
         Takes abolute energies from band_bottom to around Efermi and further
