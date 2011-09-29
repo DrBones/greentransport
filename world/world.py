@@ -19,16 +19,20 @@ class World:
         """reads in bmp and generates contacts and other
         objects of interest"""
         from PIL import Image
-        from scipy import where, asarray, array, transpose
+        from scipy import where, asarray, array, transpose,logical_or
         from aux import Contact
         img = Image.open(self.atlas)
         arr = asarray(img)
         contacts = []
-        contact_shades = [119, 149, 179, 209]
+        shades = [(109,119), (139,149), (169,179), (199,209)]
         contact_index = 0
-        for shade in contact_shades:
-            a = Contact(where(arr == shade))
+        leads = []
+        for shade in shades:
+            a = Contact(where(arr == shade[1]))
             if a.shape[1] == 0: continue
+            lead = Contact(logical_or(arr == shade[0],arr ==shade[1]).nonzero())
+            lead.index = contact_index
+            leads.append(lead)
             a.index = contact_index
             #from pudb import set_trace; set_trace()
             try:
@@ -48,6 +52,7 @@ class World:
         self.wafer = arr
         self.canvas = arr.shape
         self.contacts = contacts
+        self.leads = leads
 
     def __compose_nodes(self):
         from collections import OrderedDict

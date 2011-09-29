@@ -12,6 +12,7 @@ class Model:
 
         #self.nodes = world.nodes
         self.wafer = world.wafer
+        self.leads = world.leads
         self.contacts = world.contacts
         self.raw_coords = world.raw_coords
         self.active_coords = world.active_coords
@@ -171,10 +172,15 @@ class Model:
         pad = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
         self.Hpad = bmat([[pad,None,None],[None,H,None],[None,None,pad]])
 
-    def generate_graph(self):
+    def generate_graphs(self):
         # TODO make lazy initialized
         from aux import digraph_from_coords
+        print 'Generating graph of device'
         self.graph,self.tuple_of_coords = digraph_from_coords(self,self.raw_coords)
+        self.lead_graphs = []
+        for lead in self.leads:
+            print 'Generating graph of lead: ',lead.index
+            self.lead_graphs.append(list(digraph_from_coords(self,lead)))
         self.add_nodenames_to_contacts()
 
     def add_nodenames_to_contacts(self):
@@ -187,6 +193,14 @@ class Model:
                 #for partner_tuple in contact_tuple:
                 #    partner_name = self.tuple_of_coords.index(partner_tuple)
                 #    self.graph.add_edge(initial_name,partner_name)
+
+    def expand_contacts_to_spin_space(self):
+        for contact in self.contacts:
+            list_of_nodenames = list(contact.names)
+            contact.names=set()
+            for contact_node in list_of_nodenames:
+                contact.names.add(contact_node*2)
+                contact.names.add(2*contact_node+1)
 
     def generate_balanced_levelstructure(self):
         from aux import BreadthFirstLevels, bisect
@@ -227,7 +241,6 @@ class Model:
             for xy in coordinates:
                 yield 4*self.t0+self.potential_grid[tuple(xy)]
         self.H.setdiag(list(serial_pot(self)))
-
 
     def fermifunction(self, E_tot, mu):
         """ Simple Fermifunction """
@@ -295,6 +308,10 @@ class Model:
     def gamma(self, sigma):
         gamma = 1j*(sigma-sigma.conj())
         return gamma
+
+    def generate_transverse_hamil(self,ind_contact):
+        from numpy import zeros, eye
+        contact_length = ind_contact.shape[1]
 
     def transfersigma(self,ind_contact,E):
         from scipy.linalg import eig,inv
@@ -462,69 +479,6 @@ class Model:
         A = (E_tot+self.zplus)*I - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
-    #def energyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
-    #    from scipy import pi, array
-    #    from scipy.sparse import lil_matrix
-    #    from sparseblockslice import SparseBlocks
-    #    #if integrand == self.RRGM:
-    #    #    value, foo = -integrand.__call__(Ablock).imag
-    #    #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
-    #    #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
-    #    #else:
-    #        #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
-    #    #integral = array([0]*len(self.nodes))
-    #    integral = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
-    #    #A = lil_matrix((len(self.nodes), len(self.nodes)))
-    #    #print A
-    #    max_density = []
-    #    i=0
-    #    for energy in self.Egrid:
-    #        #A, sigma_in_l, sigma_in_r = self.build_A(energy)
-    #        A, sigma_in_l, sigma_in_r = self.simpleA(energy)
-    #        #Ablock = SparseBlocks(A, self.block_sizes)
-    #        Ablock = SparseBlocks(A,[self.wafer.shape[1]]*self.wafer.shape[0] )
-    #        fncvalue = -integrand.__call__(Ablock)[0]*self.fermifunction(energy, self.mu)*self.dE/(pi*self.a)
-    #        self.writetovtk(fncvalue.imag, str(i))
-    #        summi = integral + fncvalue
-    #        i+=1
-    #        max_density.append(integral.imag.min())
-    #        self.writetovtk(summi.imag, 'summi')
-
-    #    return integral, max_density
-
-    #def spinenergyintegrate(self,integrand,sigma_in_l=None,sigma_in_r=None):
-    #    from scipy import pi, array
-    #    #from scipy.sparse import lil_matrix
-    #    from sparseblockslice import SparseBlocks
-    #    #from scipy import vstack
-    #    #if integrand == self.RRGM:
-    #    #    value, foo = -integrand.__call__(Ablock).imag
-    #    #elif integrand == self.LRGM and sigma_in_l is not None and sigma_in_r is not None:
-    #    #    value = integrand.__call__(Ablock,sigma_in_l, sigma_in_r,).real
-    #    #else:
-    #        #print 'Please insert supported functions RRGM or LRGM(not none sigmas)'
-    #    #hills = array([0]*self.wafer.shape[0]*self.wafer.shape[1])
-    #    #A = lil_matrix((len(self.nodes), len(self.nodes)))
-    #    #print A
-    #    integral = array([0]*self.multi*self.wafer.shape[0]*self.wafer.shape[1])
-    #    max_density = []
-    #    i=0
-    #    print "Current Energy:     ", "Left Occupation:     ", "Right Occupation:     ", "Maximum Density:"
-    #    for energy in self.Egrid:
-    #        #A, sigma_in_l, sigma_in_r = self.build_A(energy)
-    #        A, sigma_in_l, sigma_in_r = self.spinA(energy)
-    #        #Ablock = SparseBlocks(A, self.block_sizes)
-    #        Ablock = SparseBlocks(A,[self.wafer.shape[1]*self.multi]*self.wafer.shape[0] )
-    #        fncvalue = integrand.__call__(Ablock, sigma_in_l, sigma_in_r)*self.dE/(pi*self.a**2)
-    #        print i, energy,"            ", self.fermifunction(energy, mu=self.mu_l),"               ", self.fermifunction(energy, mu=self.mu_r),"          ", fncvalue.real.max()
-    #        #self.writetovtk(fncvalue.real, str(i))
-    #        integral = integral + fncvalue
-    #        #hills = vstack((hills,integral))
-    #        i+=1
-    #        max_density.append(fncvalue.real.max())
-    #    #self.writetovtk(integral.real, 'integrated')
-    #    return integral, max_density
-
     def adaptiveenergy(self):
         pass
 
@@ -586,6 +540,13 @@ class Model:
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
 
+    def expand_to_spinspace(self):
+        from aux import spingraph_from_graph
+        self.expand_contacts_to_spin_space()
+        self.graph = spingraph_from_graph(self.graph,self.tso)
+        for lead_graph in self.lead_graphs:
+            lead_graph[0] = spingraph_from_graph(lead_graph[0], self.tso)
+
     def setmode(self,mode='normal'):
         if mode == 'normal':
             self.multi = 1
@@ -600,16 +561,15 @@ class Model:
         elif mode == 'graph':
             self.multi = 1
             self.order = 'even'
-            self.generate_graph()
+            self.generate_graphs()
             self.generate_balanced_levelstructure()
             self.hamiltonian_from_graph()
             self.update_hamil_diag()
         elif mode == 'spin_graph':
-            from aux import spingraph_from_graph
             self.multi = 2
             self.order = 'odd'
-            self.generate_graph()
-            spingraph_from_graph(self,self.graph)
+            self.generate_graphs()
+            self.expand_to_spinspace()
             self.generate_balanced_levelstructure()
             self.hamiltonian_from_graph()
             self.update_hamil_diag()
