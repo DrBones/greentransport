@@ -108,26 +108,25 @@ def colorarray_from_levelstructure(instance,levelstructure):
     return colorarray
 
 def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
-    from matplotlib.cbook import flatten
     from numpy import floor
 #return when at the end of the recursive bisection and no more levels to bisect
-    if Ni == 1: return [set(sorted(nodes_to_bisect))]
+    if Ni == 1: return [set(nodes_to_bisect)]
 #calculate how many levels are in any of the two parts. Caution: Integer division!
     Ni1 = Ni/2
     Ni2 = Ni-Ni/2
 #lock all nodes except those to bisect
     locked_set = set(graph.nodes())-nodes_to_bisect
-    nodes_i1_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_left,locked_nodes=locked_set,level=Ni1)))-nodes_left
+    nodes_i1_bfs = set([item for level in BreadthFirstLevels(graph,root=nodes_left,locked_nodes=locked_set,level=Ni1) for item in level])-nodes_left
     locked_set |= nodes_i1_bfs
-    nodes_i2_bfs = set(flatten(BreadthFirstLevels(graph,root=nodes_right,locked_nodes=locked_set,level=Ni2)))-nodes_right
+    nodes_i2_bfs = set([item for level in BreadthFirstLevels(graph,root=nodes_right,locked_nodes=locked_set,level=Ni2) for item in level])-nodes_right
     locked_set |= nodes_i2_bfs
     max_nodes_i1 = floor(Ni1*len(nodes_to_bisect)/float(Ni))
     max_nodes_i2 = len(nodes_to_bisect)-max_nodes_i1
     if len(nodes_i1_bfs) <= len(nodes_i2_bfs):
-        nodes_i1 = set(flatten(BreadthFirstLevels(graph,root=nodes_i1_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i1)))
+        nodes_i1 = set([item for level in BreadthFirstLevels(graph,root=nodes_i1_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i1) for item in level])
         nodes_i2 = nodes_i2_bfs | (nodes_to_bisect-nodes_i1)
     else:
-        nodes_i2 = set(flatten(BreadthFirstLevels(graph,root=nodes_i2_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i2)))
+        nodes_i2 = set([item for level in BreadthFirstLevels(graph,root=nodes_i2_bfs,locked_nodes=locked_set,max_nodes=max_nodes_i2) for item in level])
         nodes_i1 = nodes_i1_bfs | (nodes_to_bisect-nodes_i2)
 
     return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2) + bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)

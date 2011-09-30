@@ -180,7 +180,9 @@ class Model:
         self.lead_graphs = []
         for lead in self.leads:
             print 'Generating graph of lead: ',lead.index
-            self.lead_graphs.append(list(digraph_from_coords(self,lead)))
+            lead_list = list(digraph_from_coords(self,lead))
+            lead_list.append(lead.index)
+            self.lead_graphs.append(lead_list)
         self.add_nodenames_to_contacts()
 
     def add_nodenames_to_contacts(self):
@@ -216,10 +218,9 @@ class Model:
     def hamiltonian_from_graph(self):
         from numpy import complex128
         from networkx import to_scipy_sparse_matrix
-        from matplotlib.cbook import flatten
         if ('levelstructure' in dir(self)):
             print 'using levelstructure information'
-            self.nodelist =list(flatten(self.levelstructure))
+            self.nodelist =[item for level in self.levelstructure for item in sorted(level)]
             self.block_sizes = [ len(level) for level in self.levelstructure]
             self.H = to_scipy_sparse_matrix(self.graph,nodelist=self.nodelist,dtype=complex128)
         else:
@@ -381,41 +382,63 @@ class Model:
         elif ind_contact.index == 1:
             sigma[-SigmaRet.shape[0]:, -SigmaRet.shape[1]:] = SigmaRet
             self.sigma2=sigma
-        #import pudb; pudb.set_trace()
+        import pudb; pudb.set_trace()
         return sigma
 
-    def sigma_from_lead_graph(self,lead,E):
+    def sigma_from_lead_graph(self,lead_graph,E):
         from scipy.linalg import inv,schur
         from scipy.sparse import lil_matrix
-        from aux import SparseBlocks
-        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,split,asarray
+        from aux import SparseBlocks, eigenvector_from_eigenvalue, all_elements_are_unique
+        from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,split,asarray,diag,array
+        # should be able to turn zplus off, but then i need better eigenvalue comparison
         E= E+self.zplus
-        graph, coords = lead
+        graph, coords, index = lead_graph
         Ndim = len(self.active_coords)
         block=graph.order()/2
         I=eye(block*self.multi)
         Zeros = zeros((block*self.multi,block*self.multi))
         Hlead = self.nx.to_numpy_matrix(graph,dtype=complex128)
-        H00 = asarray(Hlead[:block,:block])
+        # add 4*self.t0 because the matrix from graph lacks diagonal (no self-loops)
+        H00 = asarray(Hlead[:block,:block])+4*self.t0 * I
         H01 = asarray(Hlead[:block,block:])
         inv_H01 = inv(H01)
-        CompanionMatrix_array =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H01.conj().T))),hstack((I,Zeros))))
-        T,Z = schur(CompanionMatrix_array)
+        CompanionMatrix_array =vstack((hstack((Zeros,I)),hstack((dot(-inv_H01,H01.conj().T),dot(inv_H01,E*I-H00)))))
+        #CompanionMatrix_array =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H01.conj().T))),hstack((I,Zeros))))
+        # the following 'complex' might be superfluous and only for real input matrices.
+        T,Z = schur(CompanionMatrix_array,output='complex')
+        eigenvalues = diag(T)
+        propagating_eigenvalues = []
+        propagating_eigenvectors = []
+        for eigenvalue in eigenvalues:
+            if abs(abs(eigenvalue)-1) < 0.01:
+                propagating_eigenvalues.append(eigenvalue)
+                eigenvector = eigenvector_from_eigenvalue(CompanionMatrix_array, eigenvalue)
+                propagating_eigenvectors.append(eigenvector)
+        prop_eig_array = array(propagating_eigenvectors).T
+        if not all_elements_are_unique:
+            print "--------------WARNING!!!!!---------------"
+            print "One or more eigenvalues are identical, please rotate eigenvectors, I don't know how to do that"
+        # sort eigenvalues and Z according to acending abs(eigenvalue), TODO: do better sorting, now it
+        # depends on luck. sort using the calulated eigenvectors above
+        sorting_indices = abs(eigenvalues).argsort()
+        #T = T[:,sorting_indices][sorting_indices,:]
+        #Z = Z[:,sorting_indices][sorting_indices,:]
+        Zleft,Zright = split(Z,2,axis=1)
+        #S4,S3 = split(Sright,2,axis=0)
+        Z11,Z21 = split(Zleft,2,axis=0)
+        SigmaRet = dot(H01,dot(Z21,inv(Z11)))
         import pudb; pudb.set_trace()
-        if ind_contact.index == 0:
+        if index == 0:
             self.SigmaRet1 = SigmaRet
-            #temp = zeros((60,60),dtype=complex128)
-            #temp[30:60,30:60] =SigmaRet[:30,:30]
-            #SigmaRet=temp
         else :
             self.SigmaRet2 = SigmaRet
         print 'SigaRet shape: ',SigmaRet.shape
         sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         print 'sigma shape: ',sigma.shape
-        if ind_contact.index == 0:
+        if index == 0:
             sigma[0:SigmaRet.shape[0], 0:SigmaRet.shape[1]] = SigmaRet
             self.sigma1=sigma
-        elif ind_contact.index == 1:
+        elif index == 1:
             sigma[-SigmaRet.shape[0]:, -SigmaRet.shape[1]:] = SigmaRet
             self.sigma2=sigma
         return sigma
@@ -486,25 +509,46 @@ class Model:
         #global sigma_l,sigma_r,sigma_in_l,sigma_in_r
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
-        if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
-            print 'Generating new selfnergy matrices'
-            sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
-            self.sigma_l = sigma_l
-            #sigma_l = self.transfersigma(self.contacts[0], E_tot)
-            sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
-            self.sigma_r = sigma_r
-            #sigma_r =self.transfersigma(self.contacts[1], E_tot)
-            self.gamma_l = self.gamma(sigma_l)
-            self.gamma_r = self.gamma(sigma_r)
-            sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
-            self.sigma_in_l = sigma_in_l
-            sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
-            self.sigma_in_r = sigma_in_r
+        if (not ('graph' in dir(self))):
+            print "Using eigenvalue decomp of transfermatrix of blocks to build selfenergy"
+            if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
+                print 'Generating new selfenergy matrices'
+                sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
+                self.sigma_l = sigma_l
+                #sigma_l = self.transfersigma(self.contacts[0], E_tot)
+                sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
+                self.sigma_r = sigma_r
+                #sigma_r =self.transfersigma(self.contacts[1], E_tot)
+                self.gamma_l = self.gamma(sigma_l)
+                self.gamma_r = self.gamma(sigma_r)
+                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+                self.sigma_in_l = sigma_in_l
+                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+                self.sigma_in_r = sigma_in_r
+            else:
+                sigma_l = self.sigma_l
+                sigma_r = self.sigma_r
+                sigma_in_l = self.sigma_in_l
+                sigma_in_r = self.sigma_in_r
         else:
-            sigma_l = self.sigma_l
-            sigma_r = self.sigma_r
-            sigma_in_l = self.sigma_in_l
-            sigma_in_r = self.sigma_in_r
+            print "Using schur decomp of lead_graphs to build selfenergy"
+            if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
+                print 'Generating new selfenergy matrices'
+                sigma_l = self.sigma_from_lead_graph(self.lead_graphs[0],E_tot)
+                self.sigma_l = sigma_l
+                sigma_r =self.sigma_from_lead_graph(self.lead_graphs[1], E_tot)
+                self.sigma_r = sigma_r
+                self.gamma_l = self.gamma(sigma_l)
+                self.gamma_r = self.gamma(sigma_r)
+                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+                self.sigma_in_l = sigma_in_l
+                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+                self.sigma_in_r = sigma_in_r
+            else:
+                sigma_l = self.sigma_l
+                sigma_r = self.sigma_r
+                sigma_in_l = self.sigma_in_l
+                sigma_in_r = self.sigma_in_r
 
         I =eye(number_of_nodes*self.multi,number_of_nodes*self.multi,dtype=complex128, format='lil')
         self.lastenergy = E_rel
@@ -585,11 +629,13 @@ class Model:
 
     def setmode(self,mode='normal'):
         if mode == 'normal':
+            if ('graph' in dir(self)): del self.graph
             self.multi = 1
             self.order = 'even'
             self.block_sizes=[self.wafer.shape[1]*self.multi]*self.wafer.shape[0]
             self.simpleH()
         elif mode == 'spin':
+            if ('graph' in dir(self)): del self.graph
             self.multi = 2
             self.order = 'even'
             self.block_sizes=[self.wafer.shape[1]*self.multi]*self.wafer.shape[0]

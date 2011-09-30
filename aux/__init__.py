@@ -9,6 +9,8 @@ from contact import Contact
 from spy import spy
 from custom_func import heaviside
 from custom_func import Pot
+from custom_func import eigenvector_from_eigenvalue
+from custom_func import all_elements_are_unique
 from custom_func import sphericalPot
 from graph_library import graph_from_coords
 from graph_library import digraph_from_coords
