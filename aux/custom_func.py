@@ -64,6 +64,9 @@ def eigenvector_from_eigenvalue(A, eigenvalue):
 
 def all_elements_are_unique(array):
     for i in range(len(array)):
-        for j in set(range(len(array)))-set([j]):
+        for j in set(range(len(array)))-set([i]):
             if abs(array[i]-array[j]) < 1e-3: return False
             else: return True
+
+def nodenames_of_contact(lead_graph_list, contact):
+    pass

@@ -1,4 +1,5 @@
 from numpy import inf
+from parameters import p
 import networkx as nx
 def graph_from_array(arr):
     import networkx as nx
@@ -14,42 +15,41 @@ def graph_from_array(arr):
                 g.add_edge((i,j),(i+1,j))
     return g
 
-def graph_from_coords(instance,coords):
+def graph_from_coords(coords):
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
     graph  = nx.Graph()
-    tuple_of_coords = tuple(zip(coords[0],coords[1]))
-    for idx in range(len(tuple_of_coords)-1): #-1 so i dont check the item after the last
-        if tuple_of_coords[idx][1]+1 == tuple_of_coords[idx+1][1]:
+    tuple_coordinates = tuple(zip(coords[0],coords[1]))
+    for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
+        if tuple_coordinates[idx][1]+1 == tuple_coordinates[idx+1][1]:
             graph.add_edge(idx,idx+1,neightbour_in_same='row')
         try:
             graph.add_edge(idx,
-                       tuple_of_coords.index((tuple_of_coords[idx][0]+1, tuple_of_coords[idx][1])),
+                       tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1])),
                        neighbour_in_same='column')
         except ValueError:
             print 'No node below node: ',(idx)
-    return graph, tuple_of_coords
+    return graph, tuple_coordinates
 
 
-def digraph_from_coords(instance,coords):
+def digraph_from_tuple_coords(tuple_coordinates):
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
     graph  = nx.DiGraph()
-    tuple_of_coords = tuple(zip(coords[0],coords[1]))
-    for idx in range(len(tuple_of_coords)-1): #-1 so i dont check the item after the last
-        if tuple_of_coords[idx][1]+1 == tuple_of_coords[idx+1][1]:
-            graph.add_edge(idx,idx+1,weight=-instance.t0,neightbour_in_same='row')
-            graph.add_edge(idx+1,idx,weight=-instance.t0,neightbour_in_same='row')
+    for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
+        if tuple_coordinates[idx][1]+1 == tuple_coordinates[idx+1][1]:
+            graph.add_edge(idx,idx+1,weight=-p.t0,neightbour_in_same='row')
+            graph.add_edge(idx+1,idx,weight=-p.t0,neightbour_in_same='row')
         try:
             graph.add_edge(idx,
-                           tuple_of_coords.index((tuple_of_coords[idx][0]+1, tuple_of_coords[idx][1])),
-                           weight=-instance.t0,
+                           tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1])),
+                           weight=-p.t0,
                            neighbour_in_same='column')
-            graph.add_edge(tuple_of_coords.index((tuple_of_coords[idx][0]+1, tuple_of_coords[idx][1])),
+            graph.add_edge(tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1])),
                            idx,
-                           weight=-instance.t0,
+                           weight=-p.t0,
                            neighbour_in_same='column')
         except ValueError:
             print 'No node below node: ',(idx)
-    return graph, tuple_of_coords
+    return graph
 """
 Breadth First Search.
 D. Eppstein, May 2007.
@@ -99,11 +99,11 @@ def BreadthFirstLevels(graph,root,locked_nodes=(),end=None,level=None,max_nodes=
 
 def colorarray_from_levelstructure(instance,levelstructure):
     from numpy import zeros
-    colorarray = zeros(instance.wafer.shape)
+    colorarray = zeros(instance.canvas.shape)
     color = 1
     for level in levelstructure:
         for node in level:
-            colorarray[instance.tuple_of_coords[node]] = color
+            colorarray[instance.tuple_canvas_coordinates[node]] = color
         color+=1
     return colorarray
 

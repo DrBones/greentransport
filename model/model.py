@@ -4,85 +4,23 @@ class Model:
 
     def __init__(self, world):
         from scipy import linspace, cos, pi
-        Model.canvas = world.canvas
+        from parameters import p
+        self.p = p
+        Model.canvas = p.canvas
         Model.atlas = world.atlas
-        Model.hbar = world.hbar
-        Model.m0 = world.m0
-        Model.kb = world.kb
 
         #self.nodes = world.nodes
-        self.wafer = world.wafer
-        self.leads = world.leads
-        self.contacts = world.contacts
-        self.raw_coords = world.raw_coords
-        self.active_coords = world.active_coords
-        self.block_sizes = world.block_sizes
-        self.eps0 = world.eps0
-        self.q = world.q
-        #Potential Drop over legth of device
+        self.contacts = p.contacts
+        # self.raw_coords = p.raw_coords
+        self.tuple_canvas_coordinates = p.tuple_canvas_coordinates
+        self.eps0 = p.eps0
         self.multi = 1
-        self.a = 3e-9 # in meter
-        self.alpha = 20e-12 # eV m
-        #effective mass in eV real in GaAs 0.063
-        self.mass = 0.036*Model.m0
-        self.t0 = (Model.hbar**2)/(2*self.mass*(self.a**2))
-        self.tso = self.alpha/(2 * self.a)
-        #self.tso = 0.01*self.t0
-        #self.tso = 0
-        #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        self.epsr = 12.85
-        self.Temp = 2 #in Kelvin
-        self.kT = Model.kb * self.Temp
-        self.lambdaf = 10 # i believe in nanometer, 35 more realistic?
-        self.BField = 0 # in Tesla, from 0-~10
-        self.zplus = 1j*1e-12
-        self.band_bottom = 0
-        #self.band_bottom = -4*self.t0
-        #self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
-        self.Efermi = 0.15*self.t0
-        self.potential_drop = [0,0]
-        #self.potential_drop = [0.004*self.t0/2, -0.004* self.t0/2]# in eV
-        #self.Efermi = -3.8 * self.t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        #self.Egrid = linspace(self.Efermi-0.4*self.t0,self.Efermi +0.4*self.t0,100)+self.zplus # in eV ?
-        self.mu = self.Efermi
-        #self.dE = self.Egrid[1].real-self.Egrid[0].real
-        #electro-chemical potential in eV
-        self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
-        self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
+        self.p.empty_potential_grid()
         #self.stepgrid(2,2)
-        self.circular_qpc()
+        # self.circular_qpc()
         #self.__generate_potential_grid()
         #self.grid2serialized(self.potential_grid)
         #self.__build_H()
-
-    def stepgrid(self, step1,step2):
-        from scipy import r_
-        self.potential_grid = (r_[[self.potential_drop[0]]*self.wafer.shape[1]*step1,
-            [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
-            [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
-
-    def circular_qpc(self,shift=0,radius=1,scale=0):
-        from scipy import ogrid
-        import aux
-        size_x = self.wafer.shape[0]
-        size_y = self.wafer.shape[1]
-        x,y = ogrid[0:size_x:size_x*1j,0:size_y:size_y*1j]
-        self.potential_grid = aux.sphericalPot(x,y,shift,radius,scale)
-
-    def __generate_potential_grid(self):
-        from scipy import linspace, tile
-        rowdim = self.wafer.shape[0]
-        coldim = self.wafer.shape[1]
-        pot_slice = linspace(self.potential_drop[0],self.potential_drop[1],rowdim)
-        potential = tile(pot_slice,(coldim,1)).T
-        self.potential_grid = potential
-
-    def grid2serialized(self, grid):
-        from scipy import concatenate, array
-        potential_serialized = array([])
-        for key, value in self.nodes.items():
-           potential_serialized = concatenate((potential_serialized, [grid[key[0],key[1]]]))
-        self.potential_serialized = potential_serialized
 
     def __build_H(self):
         from scipy.sparse import lil_matrix
@@ -101,7 +39,7 @@ class Model:
     def simpleH(self):
         from scipy.sparse import lil_matrix, triu,bmat,eye,hstack
         from scipy import complex128, exp, pi
-        Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
+        Balpha = self.BField * self.a**2 /(2 * pi *self.p.hbar) # without the leading q because of hbar in eV
         Ndim = self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
         H = lil_matrix((Ndim,Ndim),dtype=complex128)
@@ -131,7 +69,7 @@ class Model:
         from scipy.sparse import lil_matrix, triu,bmat
         from scipy import complex128, exp, pi
 # TODO just changed offdiagonal tso sign, this seems more correct
-        Balpha = self.BField * self.a**2 /(2 * pi *self.hbar) # without the leading q because of hbar in eV
+        Balpha = self.BField * self.a**2 /(2 * pi *self.p.hbar) # without the leading q because of hbar in eV
         Ndim = 2*self.wafer.shape[0]*self.wafer.shape[1]
         ystride = self.wafer.shape[1]
         H = lil_matrix((Ndim,Ndim),dtype=complex128)
@@ -172,29 +110,11 @@ class Model:
         pad = lil_matrix((self.wafer.shape[1],self.wafer.shape[1]))
         self.Hpad = bmat([[pad,None,None],[None,H,None],[None,None,pad]])
 
-    def generate_graphs(self):
+    def generate_graph(self):
         # TODO make lazy initialized
-        from aux import digraph_from_coords
+        from aux import digraph_from_tuple_coords
         print 'Generating graph of device'
-        self.graph,self.tuple_of_coords = digraph_from_coords(self,self.raw_coords)
-        self.lead_graphs = []
-        for lead in self.leads:
-            print 'Generating graph of lead: ',lead.index
-            lead_list = list(digraph_from_coords(self,lead))
-            lead_list.append(lead.index)
-            self.lead_graphs.append(lead_list)
-        self.add_nodenames_to_contacts()
-
-    def add_nodenames_to_contacts(self):
-        for contact in self.contacts:
-            contact.names = set()
-            contact_tuple= tuple(zip(contact[0],contact[1]))
-            for initial_tuple in contact_tuple:
-                initial_name = self.tuple_of_coords.index(initial_tuple)
-                contact.names.add(initial_name)
-                #for partner_tuple in contact_tuple:
-                #    partner_name = self.tuple_of_coords.index(partner_tuple)
-                #    self.graph.add_edge(initial_name,partner_name)
+        self.graph = digraph_from_tuple_coords(self.p.tuple_canvas_coordinates)
 
     def expand_contacts_to_spin_space(self):
         for contact in self.contacts:
@@ -207,10 +127,10 @@ class Model:
     def generate_balanced_levelstructure(self):
         from aux import BreadthFirstLevels, bisect
         #import pudb; pudb.set_trace()
-        BFS_levelstructure = BreadthFirstLevels(self.graph,root=self.contacts[0].names,end=self.contacts[1].names)
+        nodes_left  = self.contacts[0].node_names
+        nodes_right = self.contacts[1].node_names
+        BFS_levelstructure = BreadthFirstLevels(self.graph,root=nodes_left,end=nodes_right)
         N = len(list(BFS_levelstructure))
-        nodes_left  = self.contacts[0].names
-        nodes_right = self.contacts[1].names
         nodes_to_bisect = set(self.graph.nodes())-nodes_left-nodes_right
         levelstructure = [nodes_left] + bisect(self.graph,N-2,nodes_left,nodes_to_bisect,nodes_right) + [nodes_right]
         self.levelstructure = levelstructure
@@ -233,20 +153,20 @@ class Model:
             4*t0 plus the onsite potential taken from self.potenital_grid.
             No offsetting is done! Adapt Potential of canvas to fit device """
             if self.multi == 2:
-                coordinate_array = repeat(self.tuple_of_coords,2,axis=0)
+                coordinate_array = repeat(self.tuple_canvas_coordinates,2,axis=0)
             else:
-                coordinate_array = array(self.tuple_of_coords)
+                coordinate_array = array(self.tuple_canvas_coordinates)
 
             #takes levelstructure permutations into account
             coordinates = coordinate_array[self.nodelist]
             for xy in coordinates:
-                yield 4*self.t0+self.potential_grid[tuple(xy)]
+                yield 4*self.p.t0+self.p.potential_grid[tuple(xy)]
         self.H.setdiag(list(serial_pot(self)))
 
     def fermifunction(self, E_tot, mu):
         """ Simple Fermifunction """
         from scipy import exp
-        fermifnc = 1/(exp((E_tot.real-mu)/self.kT)+1)
+        fermifnc = 1/(exp((E_tot.real-mu)/self.p.kT)+1)
         return fermifnc
 
     def __contact_greensfunction(self, ind_contact, node_i, node_j, E):
@@ -256,7 +176,7 @@ class Model:
         from scipy import arccos, exp, sin, pi, sqrt
         length = (ind_contact.shape[1]-1.0)
         amplitude = 1/sqrt(length)
-        mode_energy = self.hbar**2 * pi**2/(2*self.mass * (length*self.a)**2)
+        mode_energy = self.p.hbar**2 * pi**2/(2*self.mass * (length*self.a)**2)
         #Amplitude = 1
         ka = arccos(1-(E+mode_energy-self.band_bottom)/(2*self.t0))
         Phase = exp(1j*ka)
@@ -320,8 +240,8 @@ class Model:
         from aux import SparseBlocks
         from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,asarray,split
         E= E+self.zplus
-        Ndim = len(self.active_coords)
-        block=ind_contact.shape[1]
+        Ndim = len(self.p.tuple_canvas_coordinates)
+        block=ind_contact.length
         Hblock = SparseBlocks(self.H,self.block_sizes)
         self.Hblock = Hblock
         I=eye(block*self.multi)
@@ -385,60 +305,60 @@ class Model:
         import pudb; pudb.set_trace()
         return sigma
 
-    def sigma_from_lead_graph(self,lead_graph,E):
+    def sigma_from_contact(self,contact,E):
         from scipy.linalg import inv,schur
         from scipy.sparse import lil_matrix
         from aux import SparseBlocks, eigenvector_from_eigenvalue, all_elements_are_unique
         from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,split,asarray,diag,array
         # should be able to turn zplus off, but then i need better eigenvalue comparison
-        E= E+self.zplus
-        graph, coords, index = lead_graph
-        Ndim = len(self.active_coords)
-        block=graph.order()/2
+        E= E+self.p.zplus
+        Ndim = len(self.p.tuple_canvas_coordinates)
+        block=contact.graph.order()/2
         I=eye(block*self.multi)
         Zeros = zeros((block*self.multi,block*self.multi))
-        Hlead = self.nx.to_numpy_matrix(graph,dtype=complex128)
+        Hlead = self.nx.to_numpy_matrix(contact.graph,nodelist=contact.nodelist,dtype=complex128)
         # add 4*self.t0 because the matrix from graph lacks diagonal (no self-loops)
-        H00 = asarray(Hlead[:block,:block])+4*self.t0 * I
+        H00 = asarray(Hlead[:block,:block])+4*self.p.t0 * I
         H01 = asarray(Hlead[:block,block:])
         inv_H01 = inv(H01)
         CompanionMatrix_array =vstack((hstack((Zeros,I)),hstack((dot(-inv_H01,H01.conj().T),dot(inv_H01,E*I-H00)))))
         #CompanionMatrix_array =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H01.conj().T))),hstack((I,Zeros))))
         # the following 'complex' might be superfluous and only for real input matrices.
-        T,Z = schur(CompanionMatrix_array,output='complex')
+        # import pudb; pudb.set_trace()
+        T,Z,number_sorted= schur(CompanionMatrix_array,sort='iuc')
         eigenvalues = diag(T)
-        propagating_eigenvalues = []
-        propagating_eigenvectors = []
-        for eigenvalue in eigenvalues:
-            if abs(abs(eigenvalue)-1) < 0.01:
-                propagating_eigenvalues.append(eigenvalue)
-                eigenvector = eigenvector_from_eigenvalue(CompanionMatrix_array, eigenvalue)
-                propagating_eigenvectors.append(eigenvector)
-        prop_eig_array = array(propagating_eigenvectors).T
-        if not all_elements_are_unique:
+        # propagating_eigenvalues = []
+        # propagating_eigenvectors = []
+        # for eigenvalue in eigenvalues:
+        #     if abs(abs(eigenvalue)-1) < 0.01:
+        #         propagating_eigenvalues.append(eigenvalue)
+        #         eigenvector = eigenvector_from_eigenvalue(CompanionMatrix_array, eigenvalue)
+        #         propagating_eigenvectors.append(eigenvector)
+        # prop_eig_array = array(propagating_eigenvectors).T
+        if not all_elements_are_unique(eigenvalues):
             print "--------------WARNING!!!!!---------------"
             print "One or more eigenvalues are identical, please rotate eigenvectors, I don't know how to do that"
         # sort eigenvalues and Z according to acending abs(eigenvalue), TODO: do better sorting, now it
         # depends on luck. sort using the calulated eigenvectors above
-        sorting_indices = abs(eigenvalues).argsort()
+        # sorting_indices = abs(eigenvalues).argsort()
         #T = T[:,sorting_indices][sorting_indices,:]
         #Z = Z[:,sorting_indices][sorting_indices,:]
         Zleft,Zright = split(Z,2,axis=1)
         #S4,S3 = split(Sright,2,axis=0)
         Z11,Z21 = split(Zleft,2,axis=0)
         SigmaRet = dot(H01,dot(Z21,inv(Z11)))
-        import pudb; pudb.set_trace()
-        if index == 0:
+        # import pudb; pudb.set_trace()
+        if contact.index == 0:
             self.SigmaRet1 = SigmaRet
         else :
             self.SigmaRet2 = SigmaRet
         print 'SigaRet shape: ',SigmaRet.shape
         sigma = lil_matrix((self.multi*Ndim,self.multi*Ndim), dtype=complex128)
         print 'sigma shape: ',sigma.shape
-        if index == 0:
+        if contact.index == 0:
             sigma[0:SigmaRet.shape[0], 0:SigmaRet.shape[1]] = SigmaRet
             self.sigma1=sigma
-        elif index == 1:
+        elif contact.index == 1:
             sigma[-SigmaRet.shape[0]:, -SigmaRet.shape[1]:] = SigmaRet
             self.sigma2=sigma
         return sigma
@@ -497,15 +417,15 @@ class Model:
         number_of_nodes = len(self.nodes)
         sigma_l = self.build_sigma(self.contacts[0],E - self.potential_drop[0])
         sigma_r =self.build_sigma(self.contacts[1], E - self.potential_drop[1])
-        sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0],0:self.block_sizes[0]] * self.fermifunction(E, mu=self.mu_l)
-        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E, mu=self.mu_r)
+        sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0],0:self.block_sizes[0]] * self.fermifunction(E, mu=self.p.mu_l)
+        sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E, mu=self.p.mu_r)
         A = (E)*eye(number_of_nodes,number_of_nodes,dtype=complex128, format='lil') - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     def spinA(self,E_rel):
         from scipy.sparse import eye
         from scipy import complex128
-        number_of_nodes = len(self.active_coords)
+        number_of_nodes = len(self.p.tuple_canvas_coordinates)
         #global sigma_l,sigma_r,sigma_in_l,sigma_in_r
         #E_tot=self.Efermi+E_rel
         E_tot=E_rel
@@ -513,17 +433,17 @@ class Model:
             print "Using eigenvalue decomp of transfermatrix of blocks to build selfenergy"
             if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
                 print 'Generating new selfenergy matrices'
-                sigma_l = self.transfersigma(self.contacts[0],E_tot - self.potential_drop[0])
+                sigma_l = self.transfersigma(self.contacts[0],E_tot - self.p.potential_drop[0])
                 self.sigma_l = sigma_l
                 #sigma_l = self.transfersigma(self.contacts[0], E_tot)
-                sigma_r =self.transfersigma(self.contacts[1], E_tot - self.potential_drop[1])
+                sigma_r =self.transfersigma(self.contacts[1], E_tot - self.p.potential_drop[1])
                 self.sigma_r = sigma_r
                 #sigma_r =self.transfersigma(self.contacts[1], E_tot)
                 self.gamma_l = self.gamma(sigma_l)
                 self.gamma_r = self.gamma(sigma_r)
-                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0], 0:self.block_sizes[0]] * self.fermifunction(E_tot, mu=self.p.mu_l)
                 self.sigma_in_l = sigma_in_l
-                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.p.mu_r)
                 self.sigma_in_r = sigma_in_r
             else:
                 sigma_l = self.sigma_l
@@ -534,15 +454,15 @@ class Model:
             print "Using schur decomp of lead_graphs to build selfenergy"
             if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
                 print 'Generating new selfenergy matrices'
-                sigma_l = self.sigma_from_lead_graph(self.lead_graphs[0],E_tot)
+                sigma_l = self.sigma_from_contact(self.contacts[0],E_tot)
                 self.sigma_l = sigma_l
-                sigma_r =self.sigma_from_lead_graph(self.lead_graphs[1], E_tot)
+                sigma_r =self.sigma_from_contact(self.contacts[1], E_tot)
                 self.sigma_r = sigma_r
                 self.gamma_l = self.gamma(sigma_l)
                 self.gamma_r = self.gamma(sigma_r)
-                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[1], 0:self.block_sizes[1]] * self.fermifunction(E_tot, mu=self.mu_l)
+                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0], 0:self.block_sizes[0]] * self.fermifunction(E_tot, mu=self.p.mu_l)
                 self.sigma_in_l = sigma_in_l
-                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.mu_r)
+                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_tot, mu=self.p.mu_r)
                 self.sigma_in_r = sigma_in_r
             else:
                 sigma_l = self.sigma_l
@@ -554,9 +474,9 @@ class Model:
         self.lastenergy = E_rel
         print 'sigmainl',sigma_in_l.shape
         print 'sigmainr',sigma_in_r.shape
-        print 'I',I.shape
+        print 'I', I.shape
         print 'H', self.H.shape
-        A = (E_tot+self.zplus)*I - self.H - sigma_l  - sigma_r
+        A = (E_tot+self.p.zplus)*I - self.H - sigma_l  - sigma_r
         return A, sigma_in_l, sigma_in_r
 
     def adaptiveenergy(self):
@@ -616,7 +536,7 @@ class Model:
         from scipy.signal import fftconvolve
         from scipy import pi
         target = density.reshape(self.wafer.shape[0],self.wafer.shape[1])
-        factor = (self.q**2)/(4* pi* self.eps0 * self.epsr)
+        factor = (self.p.q**2)/(4* pi* self.eps0 * self.epsr)
         hartree = factor * fftconvolve(target, self.kernel, mode='valid')
         return hartree
 
@@ -624,8 +544,8 @@ class Model:
         from aux import spingraph_from_graph
         self.expand_contacts_to_spin_space()
         self.graph = spingraph_from_graph(self.graph,self.tso)
-        for lead_graph in self.lead_graphs:
-            lead_graph[0] = spingraph_from_graph(lead_graph[0], self.tso)
+        for contact in self.contacts:
+            contact.graph = spingraph_from_graph(contact.graph, self.tso)
 
     def setmode(self,mode='normal'):
         if mode == 'normal':
@@ -643,14 +563,14 @@ class Model:
         elif mode == 'graph':
             self.multi = 1
             self.order = 'even'
-            self.generate_graphs()
+            self.generate_graph()
             self.generate_balanced_levelstructure()
             self.hamiltonian_from_graph()
             self.update_hamil_diag()
         elif mode == 'spin_graph':
             self.multi = 2
             self.order = 'odd'
-            self.generate_graphs()
+            self.generate_graph()
             self.expand_to_spinspace()
             self.generate_balanced_levelstructure()
             self.hamiltonian_from_graph()
