@@ -131,7 +131,7 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
 
     return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2) + bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
 
-def spingraph_from_graph(graph,tso=1):
+def spingraph_from_graph(graph):
     even_graph = nx.relabel_nodes(graph, lambda x:x*2)
     odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
     union_graph  = nx.union(even_graph, odd_graph)
@@ -143,16 +143,16 @@ def spingraph_from_graph(graph,tso=1):
                 continue
             if spin_down_node_neighbour < spin_down_node:             # is either top or left neighbour
                 if spin_down_node_neighbour == spin_down_node-2:      # is left neighbour
-                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=-tso)
-                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=-tso)
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=-p.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=-p.tso)
                 else:
-                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=+1j*tso)
-                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=-1j*tso)
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=+1j*p.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=-1j*p.tso)
             if spin_down_node_neighbour > spin_down_node:             # is either right or bottom neighbour
                 if spin_down_node_neighbour == spin_down_node+2:      # is right neighbour
-                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=tso)
-                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=tso)
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=p.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=p.tso)
                 else:
-                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=-1j*tso)
-                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=+1j*tso)
+                    union_graph.add_edge(spin_up_node,spin_down_node_neighbour,weight=-1j*p.tso)
+                    union_graph.add_edge(spin_down_node_neighbour,spin_up_node,weight=+1j*p.tso)
     return union_graph

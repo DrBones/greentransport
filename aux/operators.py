@@ -15,13 +15,13 @@ def spindens(self,lrgm_out):
             Sz= zeros(self.canvas.shape,dtype=complex128)
             print 'calculating spin density for sparse structure'
             lrgm_out = self.p.hbar/(4*pi*1j*self.p.a**2)*lrgm_out
-            expanded_array_of_coords = repeat(self.tuple_canvas_cooridnates,2,axis=0)
-            for node_name in self.nodelist:
+            expanded_array_of_coords = repeat(self.tuple_canvas_coordinates,2,axis=0)
+            for index,node_name in enumerate(self.nodelist):
                 if node_name % 2 == 0:
                     sign = 1
                 else:
                     sign = -1
-                Sz[tuple(expanded_array_of_coords[node_name])] += sign * lrgm_out[node_name]
+                Sz[tuple(expanded_array_of_coords[node_name])] += sign * lrgm_out[index]
     else:
         print 'Number of nodes larger than canvas, something is wrong!'
     print 'max Spin Split: ', Sz.real.max()-Sz.real.min()
@@ -34,9 +34,10 @@ def edens(self,lrgm_out):
     number_of_lattice_points = self.canvas.shape[0]*self.canvas.shape[1]
     number_of_nodes = len(self.tuple_canvas_coordinates)
     if number_of_nodes  == number_of_lattice_points:
-        if self.multi ==1:
+        print 'Using stride bases reshape, Attention !!! Probably not what you want!'
+        if self.p.multi ==1:
                 edensity = lrgm_out.reshape(asarray(self.canvas.shape)+[0,0])*2/(2*pi*self.p.a**2) #times 2 for spin
-        if self.multi ==2:
+        if self.p.multi ==2:
             if self.order == 'even':
                 Gup, Gdown = split(lrgm_out.reshape(self.canvas.shape[0],self.canvas.shape[1]*2),2,axis=1)
                 edensity = 1/(2*pi*self.p.a**2)*(Gup+Gdown)
@@ -46,22 +47,28 @@ def edens(self,lrgm_out):
                 print "Please specify order of Nodes, i.e 'even' for allspinup-allspindown per sclice or odd for spinup-spindown-spinup-..."
     elif number_of_nodes < number_of_lattice_points:
         from scipy import zeros,complex128,repeat
-        edensity = zeros(self.canvas.shape,dtype=complex128)
-        if self.multi ==1:
+        edensity_spin_up = zeros(self.canvas.shape,dtype=complex128)
+        edensity_spin_down = zeros(self.canvas.shape,dtype=complex128)
+        if self.p.multi ==1:
             print 'calculating electron density without SO'
             lrgm_out = lrgm_out *2/(2*pi*self.p.a**2)
-            for node_name in self.nodelist:
-                edensity[self.tuple_canvas_coordinates[node_name]]= lrgm_out[node_name]
-        if self.multi ==2:
+            for index,node_name in enumerate(self.nodelist):
+                edensity_spin_up[self.tuple_canvas_coordinates[node_name]]= lrgm_out[index]
+        if self.p.multi ==2:
             print 'calculating electron density with SO'
             lrgm_out = lrgm_out*1/(2*pi*self.p.a**2)
             expanded_array_of_coords = repeat(self.tuple_canvas_coordinates,2,axis=0)
-            for node_name in self.nodelist:
-                edensity[tuple(expanded_array_of_coords[node_name])] += lrgm_out[node_name]
+            for index,node_name in enumerate(self.nodelist):
+                if node_name % 2 ==0: 
+                    edensity_spin_up[tuple(expanded_array_of_coords[node_name])] = lrgm_out[index]
+                else:
+                    edensity_spin_down[tuple(expanded_array_of_coords[node_name])] = lrgm_out[index]
+        edensity = edensity_spin_up + edensity_spin_down
+        edensity = (edensity.real, edensity_spin_up.real , edensity_spin_down.real)
     else:
         print 'Number of nodes larger than canvas, something is wrong!'
-    print 'max Electron Density: ', edensity.max()
-    return edensity.real
+    # print 'max Electron Density: ', edensity.max()
+    return edensity
 
 def transmission(self,rrgm_out):
      from scipy import matrix,trace

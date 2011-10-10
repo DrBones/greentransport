@@ -41,6 +41,10 @@ class World:
             #         a.SO = False
             contacts.append(a)
             contact_index +=1
+        if len(contacts) == 0:
+            print '--------------------------------------'
+            print 'No contacts found! This will not work!'
+            print '--------------------------------------'
         # from pudb import set_trace; set_trace()
         self.p.contacts = contacts
 
