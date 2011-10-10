@@ -6,4 +6,5 @@
 *.png
 *.mtx
 *.so
+*.bmp
 .ropeproject*
