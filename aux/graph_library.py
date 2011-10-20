@@ -15,10 +15,9 @@ def graph_from_array(arr):
                 g.add_edge((i,j),(i+1,j))
     return g
 
-def graph_from_coords(coords):
+def graph_from_tuple_coords(tuple_coordinates):
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
     graph  = nx.Graph()
-    tuple_coordinates = tuple(zip(coords[0],coords[1]))
     for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
         if tuple_coordinates[idx][1]+1 == tuple_coordinates[idx+1][1]:
             graph.add_edge(idx,idx+1,neightbour_in_same='row')
@@ -28,7 +27,7 @@ def graph_from_coords(coords):
                        neighbour_in_same='column')
         except ValueError:
             print 'No node below node: ',(idx)
-    return graph, tuple_coordinates
+    return graph
 
 
 def digraph_from_tuple_coords(tuple_coordinates):

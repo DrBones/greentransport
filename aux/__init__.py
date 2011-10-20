@@ -12,7 +12,7 @@ from custom_func import Pot
 from custom_func import eigenvector_from_eigenvalue
 from custom_func import all_elements_are_unique
 from custom_func import sphericalPot
-from graph_library import graph_from_coords
+from graph_library import graph_from_tuple_coords
 from graph_library import digraph_from_tuple_coords
 from graph_library import spingraph_from_graph
 from graph_library import BreadthFirstLevels
