@@ -35,6 +35,17 @@ def sphericalPot(x,y,shift=0,radius=1,scale=1):
     V = Vbottom +scale*(left_sphere+right_sphere)
     return V
 
+def rectengularPot(x,y,shift=0,radius=1,scale=1):
+    from scipy import real,sqrt
+    size_x = x.max()
+    size_y = y.max()
+    Vbottom = 0
+    x = x-size_x/2
+    left_rectangle = heaviside(y-shift)+real(sqrt(radius**2-x**2))*heaviside(-(y-shift))
+    right_rectangle= real(sqrt(radius**2-(x**2+(y-size_y+shift)**2)))*heaviside(-(y-size_y+shift))+real(sqrt(radius**2-x**2))*heaviside((y-size_y+shift))
+    V = Vbottom +scale*(left_rectangle+right_rectangle)
+    return V
+
 def invit(A, eigenvalue, tolerance):
     # solve equation (A-mu*I)w = v**(k-1)
     n = A.shape[0]

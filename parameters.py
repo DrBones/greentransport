@@ -8,7 +8,7 @@ class Parameters(object):
         self.m0 = 0.510e6/(self.c**2) #eV*s**2/m**2
         self.eps0 = 8.854e-12 # Vacuum permittivity C/V*m
         self.kb = 8.6173324e-5 # ev /K
-        self.a = 3e-9 # in meter
+        self.a = 1e-9 # in meter
         self.alpha = 20e-12 # eV m
         #effective mass in eV real in GaAs 0.063
         self.mass = 0.036*self.m0

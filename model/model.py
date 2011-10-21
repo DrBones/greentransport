@@ -258,6 +258,7 @@ class Model:
         return G_pq
 
     def dolrgm(self,energy):
+        #import pudb; pudb.set_trace()
         from aux import SparseBlocks
         from greensolver import lrgm
         #from io_spinr import writeVTK

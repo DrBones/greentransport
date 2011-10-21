@@ -51,6 +51,7 @@ class Contact(object):
         import networkx as nx
         from scipy.linalg import inv,schur
         from scipy.sparse import lil_matrix
+        from numpy import asarray_chkfinite,isfinite,inf
         from aux import SparseBlocks, eigenvector_from_eigenvalue, all_elements_are_unique
         from scipy import argsort,dot,eye,hstack,vstack,zeros,complex128,split,asarray,diag,array
         # should be able to turn zplus off, but then i need better eigenvalue comparison
@@ -60,15 +61,33 @@ class Contact(object):
         I=eye(block)
         Zeros = zeros((block,block))
         Hlead = nx.to_numpy_matrix(self.graph,nodelist=self.nodelist,dtype=complex128)
-        # import pudb; pudb.set_trace()
+        self.Hlead = Hlead
+        #import pudb; pudb.set_trace()
         # add 4*self.t0 because the matrix from graph lacks diagonal (no self-loops)
-        H00 = asarray(Hlead[:block,:block])+4*self.p.t0 * I
-        H01 = asarray(Hlead[:block,block:])
+        try:
+            H00 = asarray_chkfinite(Hlead[:block,:block])+4*self.p.t0 * I
+            self.H00 = H00
+        except ValueError:
+            print 'H00 contains infs or NaNs'
+            import pudb; pudb.set_trace()
+        try:
+            H01 = asarray_chkfinite(Hlead[:block,block:])
+            self.H01 = H01
+        except ValueError:
+            print 'H01 contains infs or NaNs'
+            import pudb; pudb.set_trace()
         inv_H01 = inv(H01)
+        while not isfinite(inv_H01).all():
+            print 'inv_H01 contains infs or NaNs, repeating'
+            inv_H01 = inv(H01)
+            #import pudb; pudb.set_trace()
+        self.inv_H01 = inv_H01
         CompanionMatrix_array =vstack((hstack((Zeros,I)),hstack((dot(-inv_H01,H01.conj().T),dot(inv_H01,E*I-H00)))))
+        if not isfinite(CompanionMatrix_array).all():
+            print 'CompanionMatrix contains infs or NaNs'
+            import pudb; pudb.set_trace()
         #CompanionMatrix_array =vstack((hstack((dot(inv_H01,E*I-H00),dot(-inv_H01,H01.conj().T))),hstack((I,Zeros))))
         # the following 'complex' might be superfluous and only for real input matrices.
-        # import pudb; pudb.set_trace()
         T,Z,number_sorted= schur(CompanionMatrix_array,sort='iuc')
         eigenvalues = diag(T)
         # propagating_eigenvalues = []
