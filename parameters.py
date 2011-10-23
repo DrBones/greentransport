@@ -42,28 +42,41 @@ class Parameters(object):
         self.canvas = None
         self.contacts = None
 
+    def initialize_grid(self):
+        from scipy import ogrid
+        size_x = self.canvas.shape[0]
+        size_y = self.canvas.shape[1]
+        x,y = ogrid[0:size_x:size_x*1j,0:size_y:size_y*1j]
+        return x,y
+
     def empty_potential_grid(self):
         from numpy import zeros
         self.potential_grid = zeros(self.canvas.shape)
 
     def stepgrid(self, step1,step2):
         from scipy import r_
-        self.potential_grid = (r_[[self.potential_drop[0]]*self.wafer.shape[1]*step1,
-            [0]*self.wafer.shape[1]*(self.wafer.shape[0]-step1-step2),
-            [self.potential_drop[1]]*self.wafer.shape[1]*step2].reshape(self.wafer.shape))
+        self.potential_grid = (r_[[self.potential_drop[0]]*self.canvas.shape[1]*step1,
+            [0]*self.canvas.shape[1]*(self.canvas.shape[0]-step1-step2),
+            [self.potential_drop[1]]*self.canvas.shape[1]*step2].reshape(self.canvas.shape))
 
     def circular_qpc(self,shift=0,radius=1,scale=0):
-        from scipy import ogrid
         import aux
-        size_x = self.wafer.shape[0]
-        size_y = self.wafer.shape[1]
-        x,y = ogrid[0:size_x:size_x*1j,0:size_y:size_y*1j]
-        self.p.potential_grid = aux.sphericalPot(x,y,shift,radius,scale)
+        x,y = self.initialize_grid()
+        self.potential_grid = aux.sphericalPot(x,y,shift,radius,scale)
 
+    def triangular_qpc(self,shift=0,width=1,radius=1,scale=0):
+        import aux
+        x,y = self.initialize_grid()
+        self.potential_grid = aux.triangularPot(x,y,shift,width,radius,scale)
+
+    def rectangular_qpc(self,shift=0,width=1,scale=0):
+        import aux
+        x,y = self.initialize_grid()
+        self.potential_grid = aux.rectangularPot(x,y,shift,width,scale)
     def __generate_potential_grid(self):
         from scipy import linspace, tile
-        rowdim = self.wafer.shape[0]
-        coldim = self.wafer.shape[1]
+        rowdim = self.canvas.shape[0]
+        coldim = self.canvas.shape[1]
         pot_slice = linspace(p.potential_drop[0],p.potential_drop[1],rowdim)
         potential = tile(pot_slice,(coldim,1)).T
         self.potential_grid = potential

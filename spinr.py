@@ -31,56 +31,65 @@ def init_with(canvas=None):
 
 def qpc_opening_sweep(instance,name=''):
     from scipy import linspace,zeros,array,sum,trace,pi
-    #from evtk.vtk import VtkGroup
+    from evtk.vtk import VtkGroup
     from io_spinr import writeVTK
-    import matplotlib
-    matplotlib.use('Agg')
+    import gc 
+    # import matplotlib
+    # matplotlib.use('Agg')
     import datetime
     now = datetime.datetime.now()
     name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
-    from matplotlib.backends.backend_pdf import PdfPages
+    # from matplotlib.backends.backend_pdf import PdfPages
     #from pylab import plot,figure,title,close,imshow
-    import matplotlib.pyplot as plt
-    #g = VtkGroup("./group"+name)
-    i=0
-    pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
+    # import matplotlib.pyplot as plt
+    g = VtkGroup("./group"+name)
+    # i=0
+    # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
     transmissions = []
-    for i in range(200):
-        print i
-        shift = i/2.5
+    instance.setmode('spin_graph')
+    for i in range(1):
+        print '---------------------------------------------------------'
+        print 'Step Number: ',i
+        print '---------------------------------------------------------'
+        shift = i
         print "Setting up Potential Landscape"
-        instance.circular_qpc(shift,radius=30,scale=100)
-        print "Starting to generate Hamiltonian"
-        instance.setmode('normal')
+        instance.p.triangular_qpc(shift,radius=40,width=30,scale=100)
+        print "Starting to update Hamiltonian"
+        instance.update_hamil_diag()
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
-        lrgm_val = instance.dolrgm(instance.Efermi)
+        lrgm_val = instance.dolrgm(instance.p.Efermi)
         print "Finished lrgm ...Yeah!", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
         filename = 'output/spinr'+name+'_'+str(i)
-        if instance.multi == 2:
+        if instance.p.multi == 2:
             edens =instance.edens(lrgm_val)
             spindens =instance.spindens(lrgm_val)
-            writeVTK(filename, 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
+            writeVTK(filename, 199, 399, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
             #writeVTK(filename, 29, 199, pointData={"Density":edens})
+        del lrgm_val
+        del edens
+        del spindens
         t = instance.transmission(instance.grl)
+        del instance.grl
         transmissions.append(t)
+        gc.collect()
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
         #intdens = intdens + spindens
-        #g.addFile(filepath=filename+'.vtr', sim_time=i)
-        plt.figure(figsize=(3,3))
-        plt.imshow(edens)
-        plt.colorbar()
-        plt.title('Page '+str(i))
-        pdf.savefig()
+        g.addFile(filepath=filename+'.vtr', sim_time=i)
+        # plt.figure(figsize=(3,3))
+        # plt.imshow(edens)
+        # plt.colorbar()
+        # plt.title('Page '+str(i))
+        # pdf.savefig()
         #close()
-        i+=1
-    #g.save()
-    plt.figure(figsize=(3,3))
-    plt.plot(transmissions)
-    pdf.savefig()
-    pdf.close()
+        # i+=1
+    g.save()
+    # plt.figure(figsize=(3,3))
+    # plt.plot(transmissions)
+    # pdf.savefig()
+    # pdf.close()
     #import pudb; pudb.set_trace()
     return transmissions
 

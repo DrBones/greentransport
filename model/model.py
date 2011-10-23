@@ -114,9 +114,9 @@ class Model:
         # TODO make lazy initialized
         from aux import digraph_from_tuple_coords
         print 'Generating graph of device'
-        self.graph = digraph_from_tuple_coords(self.p.tuple_canvas_coordinates)
+        self.graph = digraph_from_tuple_coords(self.p.tuple_canvas_coordinates,self.canvas.shape[1])
         for contact in self.contacts:
-            print 'Gnerating graph of interface: ', contact.index
+            print 'Generating graph of interface: ', contact.index
             contact.recreate_graph()
 
     def generate_balanced_levelstructure(self):
@@ -163,7 +163,6 @@ class Model:
         from scipy import exp
         fermifnc = 1/(exp((E.real-mu)/self.p.kT)+1)
         return fermifnc
-
 
     def build_A(self, E):
         from scipy.sparse import eye
@@ -323,14 +322,21 @@ class Model:
             self.p.multi = 1
             self.order = 'even'
             self.generate_graph()
+            print 'Generate balanced levelstructure'
             self.generate_balanced_levelstructure()
+            print 'Generate Hamiltonian from Graph'
             self.hamiltonian_from_graph()
+            print 'Update Hamiltonian Diagonal'
             self.update_hamil_diag()
         elif mode == 'spin_graph':
             self.p.multi = 2
             self.order = 'odd'
             self.generate_graph()
+            print 'Expanding to Spinspace'
             self.expand_to_spinspace()
+            print 'Generate balanced levelstructure'
             self.generate_balanced_levelstructure()
+            print 'Generate Hamiltonian from Graph'
             self.hamiltonian_from_graph()
+            print 'Update Hamiltonian Diagonal'
             self.update_hamil_diag()

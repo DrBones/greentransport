@@ -14,7 +14,9 @@ class Contact(object):
 
     def recreate_graph(self):
         self.graph = Contact.aux.digraph_from_tuple_coords(self.interface_tuple_coordinates)
+        print 'Adding Node Names to Interface: ', self.index
         self.add_nodenames()
+        print 'Sorting Nodes of Interface: ', self.index
         self.transverse_sorted_nodelist_from_graph()
 
     def add_nodenames(self):
@@ -111,9 +113,9 @@ class Contact(object):
         Z11,Z21 = split(Zleft,2,axis=0)
         SigmaRet = dot(H01,dot(Z21,inv(Z11)))
         self.SigmaRet = SigmaRet
-        print 'SigaRet (',self.index,') shape: ',SigmaRet.shape
+        print '- SimgaRet (',self.index,') shape: ',SigmaRet.shape
         sigma = lil_matrix((self.p.multi*Ndim,self.p.multi*Ndim), dtype=complex128)
-        print 'sigma shape: ',sigma.shape
+        print '- sigma shape: ',sigma.shape
 #implement polarization like (for spin up) reshape(-1,2) --> [:,1] = 0 --> reshape(shape(SigmaRet))
         if self.index == 0:
             if 'up' in self.current:
@@ -177,7 +179,7 @@ class Contact(object):
         try:
             self.maxmode = where(self.v < self.Efermi-self.band_bottom)[0].max()+1
         except ValueError:
-            print "ValueError probably no modes will fit at that energy"
+            print "- ValueError probably no modes will fit at that energy"
         if v.max() > self.Efermi-self.band_bottom:
             print 'Some mode energies larger than fermi energy, only up to mode {0} will fit'.format(self.maxmode)
             print 'Argument num_modes="all" takes only modes low enough'

@@ -1,6 +1,13 @@
 from numpy import inf
+import numpy as np
 from parameters import p
 import networkx as nx
+
+def heaviside(x):
+    from scipy import sign,ceil
+    heaviside=  np.int_(ceil((sign(x)+1)/2))
+    return heaviside
+
 def graph_from_array(arr):
     import networkx as nx
     g  = nx.Graph()
@@ -15,7 +22,7 @@ def graph_from_array(arr):
                 g.add_edge((i,j),(i+1,j))
     return g
 
-def graph_from_tuple_coords(tuple_coordinates):
+def graph_from_tuple_coords(tuple_coordinates,row_stride=None):
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
     graph  = nx.Graph()
     for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
@@ -30,24 +37,33 @@ def graph_from_tuple_coords(tuple_coordinates):
     return graph
 
 
-def digraph_from_tuple_coords(tuple_coordinates):
+def digraph_from_tuple_coords(tuple_coordinates,row_stride=None):
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
     graph  = nx.DiGraph()
+    nodes_without_node_below = 0
     for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
         if tuple_coordinates[idx][1]+1 == tuple_coordinates[idx+1][1]:
             graph.add_edge(idx,idx+1,weight=-p.t0,neightbour_in_same='row')
             graph.add_edge(idx+1,idx,weight=-p.t0,neightbour_in_same='row')
         try:
+            if row_stride is not None:
+                # start = heaviside(idx-row_stride)*idx-2*row_stride
+                start = idx
+            else:
+                start = 0
+            neighbour_node = tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1]),start)
             graph.add_edge(idx,
-                           tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1])),
+                           neighbour_node,
                            weight=-p.t0,
                            neighbour_in_same='column')
-            graph.add_edge(tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1])),
+            graph.add_edge(neighbour_node,
                            idx,
                            weight=-p.t0,
                            neighbour_in_same='column')
         except ValueError:
-            print 'No node below node: ',(idx)
+            nodes_without_node_below +=1
+            # print 'No node below node: ',(idx)
+    print '- Nodes found without bottom neighbour: ',nodes_without_node_below
     return graph
 """
 Breadth First Search.
@@ -131,9 +147,11 @@ def bisect(graph,Ni,nodes_left,nodes_to_bisect,nodes_right,locked_nodes=set()):
     return bisect(graph,Ni1,nodes_left,nodes_i1,nodes_i2) + bisect(graph,Ni2,nodes_i1,nodes_i2,nodes_right)
 
 def spingraph_from_graph(graph):
-    even_graph = nx.relabel_nodes(graph, lambda x:x*2)
-    odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
-    union_graph  = nx.union(even_graph, odd_graph)
+    # even_graph = nx.relabel_nodes(graph, lambda x:x*2)
+    # odd_graph = nx.relabel_nodes(graph, lambda x:2*x+1)
+    # union_graph  = nx.union(even_graph, odd_graph)
+    # on the fly union saves about 20% memory, ugly but more efficient
+    union_graph  = nx.union(nx.relabel_nodes(graph, lambda x:x*2),nx.relabel_nodes(graph, lambda x:2*x+1))
     # from pudb import set_trace; set_trace()
     for spin_down_node in xrange(1,union_graph.order(),2):
         spin_up_node = spin_down_node -1

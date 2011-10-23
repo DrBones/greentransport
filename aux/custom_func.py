@@ -2,8 +2,8 @@ import numpy as np
 import scipy.linalg as sl
 
 def heaviside(x):
-    from scipy import sign
-    heaviside=  ((sign(x)+1)/2)
+    from scipy import sign,ceil
+    heaviside=  np.int_(ceil((sign(x)+1)/2))
     return heaviside
 
 def Pot(x,y,factor=1):
@@ -35,15 +35,29 @@ def sphericalPot(x,y,shift=0,radius=1,scale=1):
     V = Vbottom +scale*(left_sphere+right_sphere)
     return V
 
-def rectengularPot(x,y,shift=0,radius=1,scale=1):
+def rectangularPot(x,y,shift=0,width=1,scale=1):
     from scipy import real,sqrt
     size_x = x.max()
     size_y = y.max()
     Vbottom = 0
     x = x-size_x/2
-    left_rectangle = heaviside(y-shift)+real(sqrt(radius**2-x**2))*heaviside(-(y-shift))
-    right_rectangle= real(sqrt(radius**2-(x**2+(y-size_y+shift)**2)))*heaviside(-(y-size_y+shift))+real(sqrt(radius**2-x**2))*heaviside((y-size_y+shift))
+    y = y-size_y/2
+    left_rectangle = heaviside(-y-shift/2)*heaviside(width-abs(x))
+    right_rectangle= heaviside(y-shift/2)*heaviside(width-abs(x))
+
     V = Vbottom +scale*(left_rectangle+right_rectangle)
+    return V
+
+def triangularPot(x,y,shift=0,width=1,radius=1,scale=1):
+    from scipy import real,sqrt
+    size_x = x.max()
+    size_y = y.max()
+    Vbottom = 0
+    x = x-size_x/2
+    y = y-size_y/2
+    left_triangle = heaviside(-(y+radius*abs(x)/width)-shift/2)*heaviside(width-abs(x))
+    right_triangle = heaviside(+(y-radius*abs(x)/width)-shift/2)*heaviside(width-abs(x))
+    V = Vbottom +scale*(left_triangle+right_triangle)
     return V
 
 def invit(A, eigenvalue, tolerance):
