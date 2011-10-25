@@ -46,14 +46,14 @@ def qpc_opening_sweep(instance,name=''):
     # i=0
     # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
     transmissions = []
-    instance.setmode('spin_graph')
-    for i in range(1):
+    instance.setmode('graph')
+    for i in range(155):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
         print '---------------------------------------------------------'
         shift = i
         print "Setting up Potential Landscape"
-        instance.p.triangular_qpc(shift,radius=40,width=30,scale=100)
+        instance.p.rectangular_qpc(shift,width=30,scale=100)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
@@ -67,9 +67,10 @@ def qpc_opening_sweep(instance,name=''):
         else:
             edens =instance.edens(lrgm_val)
             #writeVTK(filename, 29, 199, pointData={"Density":edens})
+            writeVTK(filename, 199, 399, pointData={"Density":edens[0]})
         del lrgm_val
         del edens
-        del spindens
+        #del spindens
         t = instance.transmission(instance.grl)
         del instance.grl
         transmissions.append(t)
