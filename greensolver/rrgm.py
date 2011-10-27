@@ -2,7 +2,7 @@ def rrgm(Ablock):
     """ Performs recursive algorithm (Svizhenko et. al) to calculate
     the retarded green's function, uses views on A, i.e. the block
     matrices of A, by Ablock """
-    from numpy import isfinite
+    from numpy import isfinite,nan_to_num
     from scipy import array, hstack
     from collections import OrderedDict
     number_of_blocks = len(Ablock)
@@ -19,10 +19,14 @@ def rrgm(Ablock):
             print ind,'prev_greensfnc contains NaNs at block',i
             prev_greensfnc = Ablock[i,i]-Ablock[i, i-1] * prev_greensfnc * Ablock[i-1,i]
             ind+=1
-        prev_greensfnc = prev_greensfnc.I
-        while not isfinite(prev_greensfnc).all():
+        prev_greensfnc_tmp = prev_greensfnc.I
+        check_if_equal = nan_to_num(prev_greensfnc_tmp)
+        while not isfinite(prev_greensfnc_tmp).all():
             print ind,'prev_greensfnc inverse contains NaNs at block',i
-            prev_greensfnc = prev_greensfnc.I
+            prev_greensfnc_tmp = prev_greensfnc.I
+            if (abs((prev_greensfnc_tmp-check_if_equal)/prev_greensfnc_tmp) < 1e-6).all():
+                print "Don't do the while loop, use nan_to_num, it's the same"
+        prev_greensfnc = prev_greensfnc_tmp
         grl[i,i] = prev_greensfnc
         grl[i,0] = -grl[i,i]*Ablock[i,i-1]*grl[i-1,0]
         #Gr only needed in final calculations of lesser Gr, possible speed gain
