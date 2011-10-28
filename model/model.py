@@ -256,6 +256,23 @@ class Model:
         G_pq = self.e**2/(self.h*2*pi)*transmission(rrgm_out)
         return G_pq
 
+    def pdfit(self, energy):
+        import matplotlib
+        matplotlib.use('pdf')
+        import matplotlib.pylab as mp
+        lrgm_out = self.dolrgm(energy)
+        dens = self.edens(lrgm_out)
+        dens_spin = self.spindens(lrgm_out)
+        mp.imshow(dens[0])
+        mp.colorbar()
+        mp.savefig('dummy',transparent=True)
+        mp.close('all')
+        mp.imshow(dens_spin,cmap='RdBu_r')
+        mp.colorbar()
+        mp.savefig('dummy'+'spindens',transparent=True)
+        
+
+
     def dolrgm(self,energy):
         #import pudb; pudb.set_trace()
         from aux import SparseBlocks

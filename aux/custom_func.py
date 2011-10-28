@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as sl
+from parameters import p
 
 def heaviside(x):
     from scipy import sign,ceil
@@ -33,6 +34,17 @@ def sphericalPot(x,y,shift=0,radius=1,scale=1):
     left_sphere = real(sqrt(radius**2-(x**2+(y-shift)**2)))*heaviside(y-shift)+real(sqrt(radius**2-x**2))*heaviside(-(y-shift))
     right_sphere = real(sqrt(radius**2-(x**2+(y-size_y+shift)**2)))*heaviside(-(y-size_y+shift))+real(sqrt(radius**2-x**2))*heaviside((y-size_y+shift))
     V = Vbottom +scale*(left_sphere+right_sphere)
+    return V
+
+def pointchargePot(x,y,shift=0,charge=1):
+    from scipy import sqrt,pi
+    size_x = x.max()
+    size_y = y.max()
+    Vbottom = 0
+    x = x-size_x/2
+    left_charge = 1/sqrt(x**2+y**2)
+    right_charge = 1/sqrt(x**2+(y-size_y)**2)
+    V = Vbottom +charge/(4*pi*p.eps0*p.epsr)*(left_charge+right_charge)
     return V
 
 def rectangularPot(x,y,shift=0,width=1,scale=1):
