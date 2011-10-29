@@ -46,14 +46,18 @@ def qpc_opening_sweep(instance,name=''):
     # i=0
     # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
     transmissions = []
-    instance.setmode('graph')
-    for i in range(155):
+    instance.setmode('spin_graph')
+    charge = 8
+    for i in range(400):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
         print '---------------------------------------------------------'
-        shift = i
+        #shift = i
+        step = 8.0/400
+        charge -=step
         print "Setting up Potential Landscape"
-        instance.p.rectangular_qpc(shift,width=30,scale=100)
+        #instance.p.rectangular_qpc(shift,width=30,scale=100)
+        instance.p.pointcharge_qpc(charge=charge, scale = 1)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)

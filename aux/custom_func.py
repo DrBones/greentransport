@@ -36,15 +36,16 @@ def sphericalPot(x,y,shift=0,radius=1,scale=1):
     V = Vbottom +scale*(left_sphere+right_sphere)
     return V
 
-def pointchargePot(x,y,shift=0,charge=1):
-    from scipy import sqrt,pi
+def pointchargePot(x,y,charge=1,scale=1):
+    from scipy import sqrt,pi,clip
     size_x = x.max()
     size_y = y.max()
     Vbottom = 0
     x = x-size_x/2
     left_charge = 1/sqrt(x**2+y**2)
     right_charge = 1/sqrt(x**2+(y-size_y)**2)
-    V = Vbottom +charge/(4*pi*p.eps0*p.epsr)*(left_charge+right_charge)
+    V = Vbottom +p.q*charge/(p.a*4*pi*p.eps0*p.epsr)*(left_charge+right_charge)
+    V = clip(V,0,scale)
     return V
 
 def rectangularPot(x,y,shift=0,width=1,scale=1):

@@ -2,6 +2,7 @@ class Parameters(object):
     """ module to import which holds all the parameters for the 
     simulation, hopefully only references but i will see """
     def __init__(self):
+        from numpy import pi,cos
         self.q = 1.6e-19 #Coulomb
         self.hbar = 6.58211928e-16 #eV * s
         self.c = 299792458 #m/s**2
@@ -20,14 +21,14 @@ class Parameters(object):
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
         self.Temp = 2 #in Kelvin
         self.kT = self.kb * self.Temp
-        self.lambdaf = 10 # i believe in nanometer, 35 more realistic?
+        self.lambdaf = 35 # i believe in nanometer, 35 more realistic?
         self.BField = 0 # in Tesla, from 0-~10
         self.zplus = 1j*1e-12
         self.band_bottom = 0
         #band_bottom = -4*t0
-        #Efermi = band_bottom + 2*t0*(1-cos(2*pi/lambdaf))
+        self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
         #Efermi = -3.8 * t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        self.Efermi = 0.15*self.t0
+        #self.Efermi = 0.15*self.t0
         #Potential Drop over legth of device
         self.potential_drop = [0,0]
         #electro-chemical potential in eV
@@ -63,6 +64,11 @@ class Parameters(object):
         import aux
         x,y = self.initialize_grid()
         self.potential_grid = aux.sphericalPot(x,y,shift,radius,scale)
+
+    def pointcharge_qpc(self,charge=0,scale=0):
+        import aux
+        x,y = self.initialize_grid()
+        self.potential_grid = aux.pointchargePot(x,y,charge,scale)
 
     def triangular_qpc(self,shift=0,width=1,radius=1,scale=0):
         import aux
