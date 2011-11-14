@@ -9,6 +9,7 @@ from contact import Contact
 from spy import spy
 from custom_func import heaviside
 from custom_func import Pot
+from custom_func import suppressor
 from custom_func import eigenvector_from_eigenvalue
 from custom_func import all_elements_are_unique
 from custom_func import sphericalPot

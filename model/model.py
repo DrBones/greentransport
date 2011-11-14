@@ -205,23 +205,23 @@ class Model:
                 sigma_in_r = self.sigma_in_r
         else:
             print "Using schur decomp of lead_graphs to build selfenergy"
-            if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
-                print 'Generating new selfenergy matrices'
-                sigma_l = self.contacts[0].generate_sigma()
-                self.sigma_l = sigma_l
-                sigma_r = self.contacts[1].generate_sigma()
-                self.sigma_r = sigma_r
-                # self.gamma_l = self.gamma(sigma_l)
-                # self.gamma_r = self.gamma(sigma_r)
-                sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0], 0:self.block_sizes[0]] * self.fermifunction(E_rel, mu=self.p.mu_l)
-                self.sigma_in_l = sigma_in_l
-                sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_rel, mu=self.p.mu_r)
-                self.sigma_in_r = sigma_in_r
-            else:
-                sigma_l = self.sigma_l
-                sigma_r = self.sigma_r
-                sigma_in_l = self.sigma_in_l
-                sigma_in_r = self.sigma_in_r
+            # if (not ('lastenergy' in dir(self)) or self.lastenergy != E_rel):
+            print 'Generating new selfenergy matrices'
+            sigma_l = self.contacts[0].generate_sigma()
+            self.sigma_l = sigma_l
+            sigma_r = self.contacts[1].generate_sigma()
+            self.sigma_r = sigma_r
+            # self.gamma_l = self.gamma(sigma_l)
+            # self.gamma_r = self.gamma(sigma_r)
+            sigma_in_l = -2* sigma_l.imag[0:self.block_sizes[0], 0:self.block_sizes[0]] * self.fermifunction(E_rel, mu=self.p.mu_l)
+            self.sigma_in_l = sigma_in_l
+            sigma_in_r = -2* sigma_r.imag[-self.block_sizes[-1]:,-self.block_sizes[-1]:] * self.fermifunction(E_rel, mu=self.p.mu_r)
+            self.sigma_in_r = sigma_in_r
+            # else:
+            #     sigma_l = self.sigma_l
+            #     sigma_r = self.sigma_r
+            #     sigma_in_l = self.sigma_in_l
+            #     sigma_in_r = self.sigma_in_r
 
         I =eye(number_of_nodes*self.p.multi,number_of_nodes*self.p.multi,dtype=complex128, format='lil')
         self.lastenergy = E_rel

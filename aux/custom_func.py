@@ -108,3 +108,7 @@ def all_elements_are_unique(array):
 
 def nodenames_of_contact(lead_graph_list, contact):
     pass
+
+def suppressor(x,region,length):
+    suppress = (x*1.0)/region * heaviside(region/2.0 - abs(x+1-region/2.0)) + heaviside(length/2.0 - region - abs(x - length/2.0)) - ((x-length*1.0)/region)*heaviside(region/2.0 - abs((x-1 - length) + region/2.0))
+    return suppress
