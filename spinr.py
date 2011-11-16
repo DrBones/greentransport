@@ -76,6 +76,7 @@ def qpc_opening_sweep(instance,name=''):
         del edens
         #del spindens
         t = instance.transmission(instance.grl)
+        print 'Calculated transmission: ',t
         del instance.grl
         transmissions.append(t)
         gc.collect()

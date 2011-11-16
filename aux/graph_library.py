@@ -1,4 +1,4 @@
-from numpy import inf,exp,conj
+from numpy import inf,exp,conj,pi
 import numpy as np
 from parameters import p
 import networkx as nx
@@ -39,13 +39,15 @@ def graph_from_tuple_coords(tuple_coordinates,row_stride=None):
 
 
 def digraph_from_tuple_coords(tuple_coordinates,row_stride=None):
-    Balpha = 1j*p.BField * p.a**2 /(p.hbar) # without the leading q because of hbar in eV
+    Balpha = 2*pi*1j*p.BField * p.a**2 /(p.hbar) # without the leading q because of hbar in eV
+    if len(tuple_coordinates) < len(p.tuple_canvas_coordinates):
+        Balpha = 0
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search
     graph  = nx.DiGraph()
     nodes_without_node_below = 0
     for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
-        supp = suppressor(tuple_coordinates[idx][0],10,p.canvas.shape[0])
-        exp_term = exp((tuple_coordinates[idx][1])*Balpha)
+        supp = suppressor(tuple_coordinates[idx][0],40,p.canvas.shape[0])
+        exp_term = exp((tuple_coordinates[idx][1]-1)*Balpha*supp)
         if tuple_coordinates[idx][1]+1 == tuple_coordinates[idx+1][1]:
             graph.add_edge(idx,idx+1,weight=-p.t0,neightbour_in_same='row')
             graph.add_edge(idx+1,idx,weight=-p.t0,neightbour_in_same='row')
@@ -58,11 +60,11 @@ def digraph_from_tuple_coords(tuple_coordinates,row_stride=None):
             neighbour_node = tuple_coordinates.index((tuple_coordinates[idx][0]+1, tuple_coordinates[idx][1]),start)
             graph.add_edge(idx,
                            neighbour_node,
-                           weight=-p.t0*conj(exp_term),
+                           weight=-p.t0*(exp_term),
                            neighbour_in_same='column')
             graph.add_edge(neighbour_node,
                            idx,
-                           weight=-p.t0*exp_term,
+                           weight=-p.t0*conj(exp_term),
                            neighbour_in_same='column')
         except ValueError:
             nodes_without_node_below +=1
