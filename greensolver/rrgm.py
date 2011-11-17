@@ -4,7 +4,11 @@ def rrgm(Ablock):
     matrices of A, by Ablock """
     from numpy import isfinite,nan_to_num
     from scipy import array, hstack
-    from collections import OrderedDict
+    try:
+        from collections import OrderedDict
+    except ImportError:
+        print 'using backported OrderedDict crossing fingers'
+        from aux import OrderedDict
     number_of_blocks = len(Ablock)
     grl = OrderedDict()
     grl[0,0] = Ablock[0,0].todense().I
