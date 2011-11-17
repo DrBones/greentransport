@@ -58,7 +58,8 @@ def rectangularPot(x,y,shift=0,width=1,scale=1):
     left_rectangle = heaviside(-y-shift/2)*heaviside(width-abs(x))
     right_rectangle= heaviside(y-shift/2)*heaviside(width-abs(x))
 
-    V = Vbottom +scale*(left_rectangle+right_rectangle)
+    V = Vbottom +scale*(right_rectangle)
+    #V = Vbottom +scale*(left_rectangle+right_rectangle)
     return V
 
 def triangularPot(x,y,shift=0,width=1,radius=1,scale=1):

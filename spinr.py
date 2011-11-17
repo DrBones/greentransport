@@ -46,32 +46,33 @@ def qpc_opening_sweep(instance,name=''):
     # i=0
     # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
     transmissions = []
-    instance.setmode('spin_graph')
-    charge = 8
-    for i in range(400):
+    instance.setmode('graph')
+    shift = -140
+    #charge = 8
+    for i in range(380):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
         print '---------------------------------------------------------'
-        #shift = i
-        step = 8.0/400
-        charge -=step
+        shift += i
+        #step = 8.0/400
+        #charge -=step
         print "Setting up Potential Landscape"
-        #instance.p.rectangular_qpc(shift,width=30,scale=100)
-        instance.p.pointcharge_qpc(charge=charge, scale = 1)
+        instance.p.rectangular_qpc(shift,width=100,scale=100)
+        #instance.p.pointcharge_qpc(charge=charge, scale = 1)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
-        lrgm_val = instance.dolrgm(instance.p.Efermi)
+        lrgm_val = instance.dolrgm(0.18*instance.p.Efermi)
         print "Finished lrgm ...Yeah!", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
         filename = 'output/spinr'+name+'_'+str(i)
         if instance.p.multi == 2:
             edens =instance.edens(lrgm_val)
             spindens =instance.spindens(lrgm_val)
-            writeVTK(filename, 199, 399, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
+            writeVTK(filename, instance.p.canvas[1]-1, instance.p.canvas[0]-1, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
             #writeVTK(filename, 29, 199, pointData={"Density":edens})
-            writeVTK(filename, 199, 399, pointData={"Density":edens[0]})
+            writeVTK(filename, instance.p.canvas[1]-1,instance.p.canvas[0]-1 , pointData={"Density":edens[0]})
         del lrgm_val
         del edens
         #del spindens
