@@ -4,7 +4,7 @@ Import of geometry to build Hamiltonian
 
 The X-axis is the row Y-Axis the column, X=Down; Y=Right
 """
-import scipy
+#import scipy
 #import matplotlib.pyplot as plt
 #import time
 #import scipy.linalg as sl
@@ -12,7 +12,7 @@ import scipy
 from world import World
 from model import Model
 #from sparseblockslice import SparseBlocks
-from aux import spy as sspy
+#from aux import spy as sspy
 #from io_spinr import writeVTK
 def main():
     print "This is spinr, please import as module and supply canvas as: \n spinr.init_with('canvas.bmp')"
@@ -31,50 +31,67 @@ def init_with(canvas=None):
 
 def qpc_opening_sweep(instance,name=''):
     from scipy import linspace,zeros,array,sum,trace,pi
+    print 'I am in qpc_opening_sweep now'
     from evtk.vtk import VtkGroup
     from io_spinr import writeVTK
     import gc 
     # import matplotlib
     # matplotlib.use('Agg')
-    import datetime
-    now = datetime.datetime.now()
-    name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
+    import time
+    print 'The time is: ', time.strftime('%X')
+    name = time.strftime('%b-%d-%Y-%H.%M')
+    import os, errno
+    home = os.environ['HOME']
+    filepath = home+'/spinr/output/tstub-'+str(instance.p.task_id)
+    try:
+        print 'trying to create dir', filepath
+        os.makedirs(filepath)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
     # from matplotlib.backends.backend_pdf import PdfPages
     #from pylab import plot,figure,title,close,imshow
     # import matplotlib.pyplot as plt
-    g = VtkGroup("./group"+name)
+    print 'creating group file'
+    g = VtkGroup(filepath+"/group"+name)
+    print 'finished creating group file'
     # i=0
     # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
     transmissions = []
-    instance.setmode('spin_graph')
-    charge = 8
-    for i in range(400):
+    print 'Setting mode to graph'
+    instance.setmode('graph')
+    print 'done setting mode to graph'
+    shift = -140
+    #charge = 8
+    for i in range(380):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
         print '---------------------------------------------------------'
-        #shift = i
-        step = 8.0/400
-        charge -=step
+        shift += i
+        #step = 8.0/400
+        #charge -=step
         print "Setting up Potential Landscape"
-        #instance.p.rectangular_qpc(shift,width=30,scale=100)
-        instance.p.pointcharge_qpc(charge=charge, scale = 1)
+        instance.p.rectangular_qpc(shift,width=100,scale=100)
+        #instance.p.pointcharge_qpc(charge=charge, scale = 1)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
-        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
+        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", time.strftime('%X')
         lrgm_val = instance.dolrgm(instance.p.Efermi)
-        print "Finished lrgm ...Yeah!", '{0}:{1}:{2}'.format(datetime.datetime.now().hour, datetime.datetime.now().minute,datetime.datetime.now().second)
-        filename = 'output/spinr'+name+'_'+str(i)
+        print "Finished lrgm ...Yeah!", time.strftime('%X')
+        filename = filepath+'/tstub'+name+'_'+str(i)
         if instance.p.multi == 2:
             edens =instance.edens(lrgm_val)
             spindens =instance.spindens(lrgm_val)
-            writeVTK(filename, 199, 399, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
+            writeVTK(filename, instance.p.canvas.shape[1]-1, instance.p.canvas.shape[0]-1, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
-            #writeVTK(filename, 29, 199, pointData={"Density":edens})
-            writeVTK(filename, 199, 399, pointData={"Density":edens[0]})
+            writeVTK(filename, instance.p.canvas.shape[1]-1,instance.p.canvas.shape[0]-1 , pointData={"Density":edens[0]})
         del lrgm_val
         del edens
-        #del spindens
+        try:
+            del spindens
+        except NameError:
+            pass
         t = instance.transmission(instance.grl)
         print 'Calculated transmission: ',t
         del instance.grl
