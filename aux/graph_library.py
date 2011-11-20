@@ -46,7 +46,7 @@ def digraph_from_tuple_coords(tuple_coordinates,row_stride=None):
     graph  = nx.DiGraph()
     nodes_without_node_below = 0
     for idx in range(len(tuple_coordinates)-1): #-1 so i dont check the item after the last
-        supp = suppressor(tuple_coordinates[idx][0],40,p.canvas.shape[0])
+        supp = suppressor(tuple_coordinates[idx][0],p.Bdummy,p.canvas.shape[0],p.Boffset)
         exp_term = exp((tuple_coordinates[idx][1]-1)*Balpha*supp)
         if tuple_coordinates[idx][1]+1 == tuple_coordinates[idx+1][1]:
             graph.add_edge(idx,idx+1,weight=-p.t0,neightbour_in_same='row')

@@ -18,6 +18,8 @@ class World:
         img = Image.open(self.atlas)
         arr = asarray(img)
         self.p.canvas = arr
+        self.p.Boffset = arr.shape[0]/10
+        self.p.Bdummy = arr.shape[0]/5
         self.p.raw_coords =logical_and(arr > 0,arr %5 ==0).nonzero()
         self.p.tuple_canvas_coordinates = tuple(zip(*self.p.raw_coords))
         contacts = []
