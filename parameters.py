@@ -10,10 +10,11 @@ class Parameters(object):
         self.eps0 = 8.854e-12 # Vacuum permittivity C/V*m
         self.epsr = 12.85
         self.kb = 8.6173324e-5 # ev /K
-        self.a = 1e-10 # in meter
+        self.a = 1e-9 # in meter
         self.alpha = 20e-12 # eV m
         #effective mass in eV real in GaAs 0.063
-        self.mass = 0.036*self.m0
+        self.mass = 0.026*self.m0
+        # self.mass = 0.036*self.m0
         self.t0 = (self.hbar**2)/(2*self.mass*(self.a**2))
         self.tso = self.alpha/(2 * self.a)
         #tso = 0.01*t0

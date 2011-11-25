@@ -22,4 +22,7 @@ from graph_library import spingraph_from_graph
 from graph_library import BreadthFirstLevels
 from graph_library import colorarray_from_levelstructure
 from graph_library import bisect
-from ordereddict import OrderedDict
+try:
+    from ordereddict import OrderedDict
+except ImportError:
+    pass
