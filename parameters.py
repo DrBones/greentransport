@@ -16,13 +16,14 @@ class Parameters(object):
         self.mass = 0.026*self.m0
         # self.mass = 0.036*self.m0
         self.t0 = (self.hbar**2)/(2*self.mass*(self.a**2))
-        self.tso = self.alpha/(2 * self.a)
+        self.tso = (self.alpha*1.0)/(2 * self.a)
         #tso = 0.01*t0
         #tso = 0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
         self.Temp = 2 #in Kelvin
         self.kT = self.kb * self.Temp
-        self.lambdaf = 35 # i believe in nanometer, 35 more realistic?
+        # self.lambdaf = 35 # i believe in nanometer, 35 more realistic?
+        self.lambdaf = 10 # i believe in nanometer, 35 more realistic?
         self.BField = 0 # in Tesla, from 0-~10
         self.zplus = 1j*1e-12
         self.band_bottom = 0
