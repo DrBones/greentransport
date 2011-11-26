@@ -111,7 +111,10 @@ class Contact(object):
         Zleft,Zright = split(Z,2,axis=1)
         #S4,S3 = split(Sright,2,axis=0)
         Z11,Z21 = split(Zleft,2,axis=0)
-        SigmaRet = dot(H01,dot(Z21,inv(Z11)))
+        if self.index == 0:
+            SigmaRet = dot(H01,dot(Z21,inv(Z11)))
+        else:
+            SigmaRet = dot(H01.conj(),dot(Z21,inv(Z11)))
         self.SigmaRet = SigmaRet
         print '- SimgaRet (',self.index,') shape: ',SigmaRet.shape
         sigma = lil_matrix((self.p.multi*Ndim,self.p.multi*Ndim), dtype=complex128)
@@ -119,8 +122,10 @@ class Contact(object):
 #implement polarization like (for spin up) reshape(-1,2) --> [:,1] = 0 --> reshape(shape(SigmaRet))
         if self.index == 0:
             if 'up' in self.current:
+                print 'Up polarized input'
                 SigmaRet.reshape(-1,2)[:,1] = 0
             elif 'down' in self.current:
+                print 'Down polarized input'
                 SigmaRet.reshape(-1,2)[:,0] = 0
             sigma[0:SigmaRet.shape[0], 0:SigmaRet.shape[1]] = SigmaRet
         elif self.index == 1:

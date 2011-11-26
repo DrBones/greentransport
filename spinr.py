@@ -310,7 +310,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
     instance.p.energy = energy
     savestats(instance,filepath)
     instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
-    slope_range=linspace(0.03,0,sweep_range)
+    slope_range=linspace(0.24,0,sweep_range)
     for i in range(sweep_range):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
