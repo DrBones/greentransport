@@ -48,6 +48,17 @@ def pointchargePot(x,y,charge=1,scale=1):
     V = clip(V,0,scale)
     return V
 
+def linearsmoothPot(x,y,slope=1,scale=1,xi=1):
+    from scipy import exp
+    size_x = x.max()
+    size_y = y.max()
+    Vbottom = 0
+    x = x-size_x/2
+    y = y-size_y/2
+    qpc = exp(-(x/xi)**2)*abs(slope*y)
+    V = Vbottom +scale*qpc*heaviside(qpc)
+    return V
+
 def rectangularPot(x,y,shift=0,width=1,scale=1):
     from scipy import real,sqrt
     size_x = x.max()

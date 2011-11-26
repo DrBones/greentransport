@@ -30,11 +30,12 @@ def init_with(canvas=None):
         print "Please specify atlas as: atlas='filename.bmp'"
 
 def qpc_opening_sweep(instance,name=''):
-    from scipy import linspace,zeros,array,sum,trace,pi
+    from scipy import linspace,zeros,array,sum,trace,pi,complex128
     print 'I am in qpc_opening_sweep now'
     from evtk.vtk import VtkGroup
     from io_spinr import writeVTK
     import gc 
+    import numpy as np
     # import matplotlib
     # matplotlib.use('Agg')
     import time
@@ -42,7 +43,7 @@ def qpc_opening_sweep(instance,name=''):
     name = time.strftime('%b-%d-%Y-%H.%M')
     import os, errno
     home = os.environ['HOME']
-    filepath = home+'/spinr/output/tstub-'+str(instance.p.task_id)
+    filepath = home+'/spinr/output/'+str(instance.atlas[-15:-4])+'-'+str(instance.p.task_id)
     try:
         print 'trying to create dir', filepath
         os.makedirs(filepath)
@@ -57,21 +58,23 @@ def qpc_opening_sweep(instance,name=''):
     print 'finished creating group file'
     # i=0
     # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
-    transmissions = []
+    sweep_range = 400
+    transmissions = np.zeros(sweep_range,dtype=complex128)
     print 'Setting mode to graph'
-    instance.setmode('graph')
-    print 'done setting mode to graph'
-    shift = -140
+    instance.setmode('spin_graph')
+    print 'done setting mode to spin_graph'
+    # shift = -140
     #charge = 8
-    for i in range(380):
+    slope = 0
+    for i in range(sweep_range):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
         print '---------------------------------------------------------'
-        shift += i
-        #step = 8.0/400
+        step = 0.05/400
         #charge -=step
+        slope +=step
         print "Setting up Potential Landscape"
-        instance.p.rectangular_qpc(shift,width=100,scale=100)
+        instance.p.linearsmooth_qpc(slope,scale=0.56*instance.p.t0,xi=10)
         #instance.p.pointcharge_qpc(charge=charge, scale = 1)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
@@ -93,9 +96,11 @@ def qpc_opening_sweep(instance,name=''):
         except NameError:
             pass
         t = instance.transmission(instance.grl)
+        transmissions[i]=t
+        np.save(filepath+'/'+name+'_transmission',transmissions)
         print 'Calculated transmission: ',t
         del instance.grl
-        transmissions.append(t)
+        transmissions[i]=t
         gc.collect()
         #dens = instance.dorrgm(energy_multi*instance.t0)
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
@@ -114,6 +119,95 @@ def qpc_opening_sweep(instance,name=''):
     # pdf.savefig()
     # pdf.close()
     #import pudb; pudb.set_trace()
+    return transmissions
+
+def energy_sweep(instance,name=''):
+    from scipy import linspace,zeros,array,sum,trace,pi,sin,cos,complex128
+    print 'I am in energy_sweep now'
+    from evtk.vtk import VtkGroup
+    import numpy as np
+    from io_spinr import writeVTK
+    import gc 
+    # import matplotlib
+    # matplotlib.use('Agg')
+    import time
+    print 'The time is: ', time.strftime('%X')
+    name =str(instance.atlas[-15:-4])
+    creation_time = str(time.strftime('%b-%d-%Y-%H.%M'))
+    import os, errno
+    home = os.environ['HOME']
+    filepath = home+'/spinr/output/'+name+'-'+creation_time+'-'+str(instance.p.task_id)+'/'
+    try:
+        print 'trying to create dir', filepath
+        os.makedirs(filepath)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
+    # from matplotlib.backends.backend_pdf import PdfPages
+    #from pylab import plot,figure,title,close,imshow
+    # import matplotlib.pyplot as plt
+    print 'creating group file'
+    g = VtkGroup(filepath+name)
+    print 'finished creating group file'
+    # i=0
+    # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
+    sweep_range = 100
+    transmissions = np.zeros(sweep_range,dtype=complex128)
+    print 'Setting mode to spin_graph'
+    instance.setmode('spin_graph')
+    print 'done setting mode to spin_graph'
+    #shift = -140
+    #charge = 8
+    El=2*instance.p.t0*(1-cos(pi/(instance.p.canvas.shape[1]-2)))
+    energy = linspace(6.0/100*40*instance.p.t0/1000,12.0/100*40*instance.p.t0/1000,sweep_range)
+    instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
+    lines = ['Fermi energy: '+str(instance.p.Efermi)+'\n','Grid spacing: '+str(instance.p.a)+'\n','Hopping parameter t0:'+str(instance.p.t0)+'\n','Spin hopping parameter tSO:'+str(instance.p.tso)+'\n','Potential drop:'+str(instance.p.potential_drop)+'\n','Effective mass:'+str(instance.p.mass)+'\n','Energy range swept: '+str(energy)+'\n','Calculated first mode energy: '+str(El)+'\n']
+    with open(filepath+'summary.txt','w') as f:
+        f.writelines(lines)
+    for i in range(sweep_range):
+        print '---------------------------------------------------------'
+        print 'Step Number: ',i
+        print '---------------------------------------------------------'
+        #shift += i
+        #step = 8.0/400
+        #charge -=step
+        #print "Setting up Potential Landscape"
+        #instance.p.rectangular_qpc(shift,width=100,scale=100)
+        #instance.p.pointcharge_qpc(charge=charge, scale = 1)
+        instance.p.stepgrid(20,20)
+        print "Starting to update Hamiltonian"
+        instance.update_hamil_diag()
+        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", time.strftime('%X')
+        lrgm_val = instance.dolrgm(energy[i])
+        print "Finished lrgm ...Yeah!", time.strftime('%X')
+        filename = filepath+'/'+name+'_'+str(i)
+        if instance.p.multi == 2:
+            edens =instance.edens(lrgm_val)
+            spindens =instance.spindens(lrgm_val)
+            np.save('filename'+'edens', edens)
+            np.save('filename'+'spindens', spindens)
+            writeVTK(filename, instance.p.canvas.shape[1]-1, instance.p.canvas.shape[0]-1, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
+        else:
+            edens =instance.edens(lrgm_val)
+            writeVTK(filename, instance.p.canvas.shape[1]-1,instance.p.canvas.shape[0]-1 , pointData={"Density":edens[0]})
+        del lrgm_val
+        del edens
+        try:
+            del spindens
+        except NameError:
+            pass
+        t = instance.transmission(instance.grl)
+        transmissions[i]=t
+        np.save(filepath+'/'+name+'_transmission',transmissions)
+        print 'Calculated transmission: ',t
+        del instance.grl
+        transmissions[i]=t
+        gc.collect()
+        #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
+        #intdens = intdens + spindens
+        g.addFile(filepath=filename+'.vtr', sim_time=i)
+        # i+=1
+    g.save()
     return transmissions
 
 def magnetic_field_sweep(instance,name=''):
@@ -173,63 +267,102 @@ def magnetic_field_sweep(instance,name=''):
     #import pudb; pudb.set_trace()
     return transmissions
 
-def sweep(instance,name=''):
-    from scipy import linspace,zeros,array,sum,trace,pi
+def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',name=''):
+    from scipy import linspace,zeros,array,sum,trace,pi,sin,cos,complex128
+    print 'I am in energy_sweep now'
     from evtk.vtk import VtkGroup
+    import numpy as np
     from io_spinr import writeVTK
-    import datetime
-    now = datetime.datetime.now()
-    name = '{0}.{1}{2}'.format(now.day, now.hour, now.minute)
-    from matplotlib.backends.backend_pdf import PdfPages
+    import gc 
+    # import matplotlib
+    # matplotlib.use('Agg')
+    import time
+    print 'The time is: ', time.strftime('%X')
+    name =str(instance.atlas[-15:-4])
+    creation_time = str(time.strftime('%b-%d-%Y-%H.%M'))
+    import os, errno
+    home = os.environ['HOME']
+    filepath = home+'/spinr/output/'+name+'-'+creation_time+'-'+str(instance.p.task_id)+'/'
+    try:
+        print 'trying to create dir', filepath
+        os.makedirs(filepath)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
+    # from matplotlib.backends.backend_pdf import PdfPages
     #from pylab import plot,figure,title,close,imshow
-    import matplotlib.pyplot as plt
-    #g = VtkGroup("./group"+name)
-    conductivity = []
-    i=0
-    pdf = PdfPages('Density_and_Conductivity.pdf')
-    intdens = zeros((instance.canvas[0],instance.canvas[1]))
-    for enmulti in linspace(instance.Efermi-0.09*instance.t0,instance.Efermi+0.5*instance.t0,70):
-        print i
-        shift = 100+i
+    # import matplotlib.pyplot as plt
+    print 'creating group file'
+    g = VtkGroup(filepath+name)
+    print 'finished creating group file'
+    # i=0
+    # pdf = PdfPages('Density_and_Conductivity'+name+'.pdf')
+    transmissions = np.zeros(sweep_range,dtype=complex128)
+    print 'Setting mode to: ',mode
+    instance.setmode(mode)
+    print 'done setting mode to spin_graph'
+    #shift = -140
+    #charge = 8
+    if sweep_type == 'energy':
+        energy = linspace(sweep_min,sweep_max,sweep_range)
+    else:
+        energy = [instance.p.Efermi]*sweep_range
+    instance.p.energy = energy
+    savestats(instance,filepath)
+    instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
+    slope_range=linspace(0.03,0,sweep_range)
+    for i in range(sweep_range):
+        print '---------------------------------------------------------'
+        print 'Step Number: ',i
+        print '---------------------------------------------------------'
+        #shift += i
+        #charge -=step
         print "Setting up Potential Landscape"
-        instance.circular_qpc(shift,radius=30,scale=100)
-        print "Starting to generate Hamiltonian"
-        instance.setmode('normal')
-        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", '{0}:{1}:{2}'.format(now.hour, now.minute,now.second)
-        lrgm_val = instance.dolrgm(enmulti)
-        print "Finished lrgm ...Yeah!", '{0}:{1}:{2}'.format(now.hour, now.minute,now.second)
-        filename = 'output/spinr'+name+'_'+str(i)
-        if instance.multi == 2:
+        if sweep_type == 'qpc':
+            instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
+        else:
+            instance.p.stepgrid(4,4)
+        #instance.p.rectangular_qpc(shift,width=100,scale=100)
+        #instance.p.pointcharge_qpc(charge=charge, scale = 1)
+        print "Starting to update Hamiltonian"
+        instance.update_hamil_diag()
+        print "Hamiltonian set up, calculating lrgm (crunch...crunch)", time.strftime('%X')
+        lrgm_val = instance.dolrgm(energy[i])
+        print "Finished lrgm ...Yeah!", time.strftime('%X')
+        filename = filepath+'/'+name+'_'+str(i)
+        if instance.p.multi == 2:
             edens =instance.edens(lrgm_val)
             spindens =instance.spindens(lrgm_val)
-            writeVTK(filename, 29, 199, pointData={"Density":edens,"SpinDensity":spindens})
+            np.save('filename'+'edens', edens)
+            np.save('filename'+'spindens', spindens)
+            writeVTK(filename, instance.p.canvas.shape[1]-1, instance.p.canvas.shape[0]-1, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
-            #writeVTK(filename, 29, 199, pointData={"Density":edens})
+            writeVTK(filename, instance.p.canvas.shape[1]-1,instance.p.canvas.shape[0]-1 , pointData={"Density":edens[0]})
+        del lrgm_val
+        del edens
+        try:
+            del spindens
+        except NameError:
+            pass
         t = instance.transmission(instance.grl)
-        G= array(trace(abs(t)**2))
-        conductivity.append(G)
-        #dens = instance.dorrgm(energy_multi*instance.t0)
+        transmissions[i]=t
+        np.save(filepath+'/'+name+'_transmission',transmissions)
+        print 'Calculated transmission: ',t
+        del instance.grl
+        transmissions[i]=t
+        gc.collect()
         #dens = -dens.imag/(instance.a**2)*instance.fermifunction(energy_multi*instance.t0, instance.mu)
         #intdens = intdens + spindens
-        #g.addFile(filepath=filename+'.vtr', sim_time=i)
-        plt.figure(figsize=(3,3))
-        plt.imshow(edens)
-        plt.colorbar()
-        #plot(instance.v.imag)
-        #plot(instance.v.real)
-        plt.title('Page '+str(i))
-        pdf.savefig()
-        #close()
-        i+=1
-    #g.save()
-    plt.figure(figsize=(3,3))
-    plt.plot(conductivity)
-    pdf.savefig()
-    pdf.close()
-    #import pudb; pudb.set_trace()
-    return
+        g.addFile(filepath=filename+'.vtr', sim_time=i)
+        # i+=1
+    g.save()
+    return transmissions
 
+def savestats(instance,filepath):
+    lines = ['Fermi energy: '+str(instance.p.Efermi)+'\n','Grid spacing: '+str(instance.p.a)+'\n','Hopping parameter t0:'+str(instance.p.t0)+'\n','Spin hopping parameter tSO:'+str(instance.p.tso)+'\n','Potential drop:'+str(instance.p.potential_drop)+'\n','Effective mass:'+str(instance.p.mass)+'\n','Energy range swept: '+str(instance.p.energy)+'\n','Calculated first mode energy: '+str(instance.p.El)+'\n']
+    with open(filepath+'summary.txt','w') as f:
+        f.writelines(lines)
 def spinint(instance):
     from scipy import linspace,zeros
     #from evtk.vtk import VtkGroup

@@ -13,7 +13,7 @@ class World:
         """reads in bmp and generates contacts and other
         objects of interest"""
         from PIL import Image
-        from scipy import where, asarray, array, transpose,logical_or,logical_and
+        from scipy import where, asarray, array, transpose,logical_or,logical_and,cos,pi
         from aux import Contact
         img = Image.open(self.atlas)
         arr = asarray(img)
@@ -22,6 +22,7 @@ class World:
         self.p.Bdummy = arr.shape[0]/5
         self.p.raw_coords =logical_and(arr > 0,arr %5 ==0).nonzero()
         self.p.tuple_canvas_coordinates = tuple(zip(*self.p.raw_coords))
+        self.p.El=2*self.p.t0*(1-cos(pi/(self.p.canvas.shape[1]-2)))
         contacts = []
         shades = [(103,115), (133,145), (163,175), (193,205)]
         contact_index = 0

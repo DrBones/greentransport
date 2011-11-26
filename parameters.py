@@ -10,7 +10,7 @@ class Parameters(object):
         self.eps0 = 8.854e-12 # Vacuum permittivity C/V*m
         self.epsr = 12.85
         self.kb = 8.6173324e-5 # ev /K
-        self.a = 1e-9 # in meter
+        self.a = 2e-9 # in meter
         self.alpha = 20e-12 # eV m
         #effective mass in eV real in GaAs 0.063
         self.mass = 0.026*self.m0
@@ -70,6 +70,11 @@ class Parameters(object):
         import aux
         x,y = self.initialize_grid()
         self.potential_grid = aux.pointchargePot(x,y,charge,scale)
+
+    def linearsmooth_qpc(self,slope=1,scale=0,xi=1):
+        import aux
+        x,y = self.initialize_grid()
+        self.potential_grid = aux.linearsmoothPot(x,y,slope,scale,xi)
 
     def triangular_qpc(self,shift=0,width=1,radius=1,scale=0):
         import aux

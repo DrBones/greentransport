@@ -16,6 +16,7 @@ from custom_func import sphericalPot
 from custom_func import triangularPot
 from custom_func import rectangularPot
 from custom_func import pointchargePot
+from custom_func import linearsmoothPot
 from graph_library import graph_from_tuple_coords
 from graph_library import digraph_from_tuple_coords
 from graph_library import spingraph_from_graph
