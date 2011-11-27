@@ -279,10 +279,16 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
     import time
     print 'The time is: ', time.strftime('%X')
     name =str(instance.atlas[-15:-4])
-    creation_time = str(time.strftime('%b-%d-%Y-%H.%M'))
+    if 'creation_time' in dir(instance.p):
+        creation_time=instance.p.creation_time
+    else:
+        creation_time = str(time.strftime('%b-%d-%Y-%H.%M'))
     import os, errno
     home = os.environ['HOME']
-    filepath = home+'/spinr/output/'+name+'-'+creation_time+'-'+str(instance.p.task_id)+'/'
+    if len(instance.p.task_id) <1:
+        filepath = home+'/spinr/output/'+name+'-'+creation_time+'/'
+    else:
+        filepath = home+'/spinr/output/'+name+'-'+creation_time+'/'+str(instance.p.task_id)+'/'
     try:
         print 'trying to create dir', filepath
         os.makedirs(filepath)
@@ -307,6 +313,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         energy = linspace(sweep_min,sweep_max,sweep_range)
     else:
         energy = [instance.p.Efermi]*sweep_range
+        qpc_range=linspace(sweep_min,sweep_max,sweep_range)
     instance.p.energy = energy
     savestats(instance,filepath)
     instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
@@ -319,9 +326,10 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         #charge -=step
         print "Setting up Potential Landscape"
         if sweep_type == 'qpc':
-            instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
-        else:
-            instance.p.stepgrid(4,4)
+            instance.p.circular_qpc(shift=qpc_range[i], radius =30, scale=100)
+            #instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
+        #elif sweep_type == 'energy':
+        #    instance.p.stepgrid(4,4)
         #instance.p.rectangular_qpc(shift,width=100,scale=100)
         #instance.p.pointcharge_qpc(charge=charge, scale = 1)
         print "Starting to update Hamiltonian"
@@ -338,6 +346,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
             writeVTK(filename, instance.p.canvas.shape[1]-1, instance.p.canvas.shape[0]-1, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
+            np.save('filename'+'edens', edens)
             writeVTK(filename, instance.p.canvas.shape[1]-1,instance.p.canvas.shape[0]-1 , pointData={"Density":edens[0]})
         del lrgm_val
         del edens

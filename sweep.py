@@ -2,13 +2,15 @@ print 'Now comes the sweep script'
 print 'importing os'
 import os
 # print 'importing numpy'
-# import numpy as n
+import numpy as n
 print 'importing spinr'
 import spinr
 print 'importing time'
 import time
 home =os.environ['HOME']
-sm = spinr.init_with(home+'/spinr/canvas/wire300x80.bmp')
+sm = spinr.init_with(home+'/spinr/canvas/wire400x200.bmp')
+# sm = spinr.init_with(home+'/spinr/canvas/wire200x100.bmp')
+# sm = spinr.init_with(home+'/spinr/canvas/wire300x80.bmp')
 if 'SGE_TASK_ID' in os.environ:
     task_id_str = os.environ['SGE_TASK_ID']
     try:
@@ -18,13 +20,19 @@ if 'SGE_TASK_ID' in os.environ:
 else:
     task_id = ''
 sm.p.task_id = task_id
+if 'JOB_CREATION_TIME' in os.environ:
+    sm.p.creation_time = os.environ['JOB_CREATION_TIME']
 print 'This is task: ',task_id,'script staring at: ',time.strftime('%X'),'in',home
-#parameter_space = n.linspace(0.1,0.2,50)
+# parameter_space = n.linspace(0,1,50)
+slope_range=n.linspace(0.24,0,50)
 # sm = spinr.init_with(home+'/spinr/canvas/wire200x100.bmp')
-#sm.p.Efermi = parameter_space[task_id]*sm.p.Efermi
-# print 'Fermi Energy is: ',sm.p.Efermi,'eV (i believe)'
+# sm.p.Efermi = parameter_space[task_id]*sm.p.Efermi
+sm.p.Efermi=0.5*sm.p.Efermi
+print 'Fermi Energy is: ',sm.p.Efermi,'eV (i believe)'
 # transmission = spinr.qpc_opening_sweep(sm)
 # transmission = spinr.energy_sweep(sm)
 # transmission = spinr.sweep(sm,100,'energy',sm.p.El-0.1*sm.p.El,sm.p.El+0.1*sm.p.El,'graph')
-transmission = spinr.sweep(sm,100,'qpc',sm.p.El-0.1*sm.p.El,sm.p.El+0.1*sm.p.El,'graph')
+# sm.p.linearsmooth_qpc(slope_range[task_id],scale=0.56*sm.p.t0,xi=10)
+# transmission = spinr.sweep(sm,100,'energy',0,sm.p.Efermi,'spin_graph')
+transmission = spinr.sweep(sm,400,'qpc',37,-15,'graph')
 # n.save(home+'/spinr/output/tstub-'+str(task_id)+'/transmission_tstub',transmission)
