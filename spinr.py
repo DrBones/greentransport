@@ -306,16 +306,16 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
     transmissions = np.zeros(sweep_range,dtype=complex128)
     print 'Setting mode to: ',mode
     instance.setmode(mode)
-    print 'done setting mode to spin_graph'
+    print 'done setting mode'
     #shift = -140
-    #charge = 8
+    charge_range = linspace(8,0,sweep_range)
     if sweep_type == 'energy':
         energy = linspace(sweep_min,sweep_max,sweep_range)
     else:
-        energy = [instance.p.Efermi]*sweep_range
+        energy = [instance.p.energy]*sweep_range
         qpc_range=linspace(sweep_min,sweep_max,sweep_range)
     instance.p.energy = energy
-    savestats(instance,filepath)
+    savestats(instance,mode,sweep_type,filepath)
     instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
     slope_range=linspace(0.24,0,sweep_range)
     for i in range(sweep_range):
@@ -323,15 +323,19 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         print 'Step Number: ',i
         print '---------------------------------------------------------'
         #shift += i
-        #charge -=step
+        # charge -=step
         print "Setting up Potential Landscape"
-        if sweep_type == 'qpc':
+        if sweep_type == 'qpccircular':
             instance.p.circular_qpc(shift=qpc_range[i], radius =30, scale=100)
-            #instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
+        elif sweep_type == 'qpcpoint':
+            instance.p.pointcharge_qpc(charge=charge_range[i], scale = 1)
+        elif sweep_type == 'qpcvariational':
+            instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
+        elif sweep_type == 'qpcrect':
+            instance.p.rectangular_qpc(shift=qpc_range[i],scale=100, width=30)
         #elif sweep_type == 'energy':
         #    instance.p.stepgrid(4,4)
-        #instance.p.rectangular_qpc(shift,width=100,scale=100)
-        #instance.p.pointcharge_qpc(charge=charge, scale = 1)
+        #instance.p.rectangular_qpc(shift,width=50,scale=100)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", time.strftime('%X')
@@ -341,12 +345,12 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         if instance.p.multi == 2:
             edens =instance.edens(lrgm_val)
             spindens =instance.spindens(lrgm_val)
-            np.save('filename'+'edens', edens)
-            np.save('filename'+'spindens', spindens)
+            np.save(filename+'edens', edens)
+            np.save(filename+'spindens', spindens)
             writeVTK(filename, instance.p.canvas.shape[1]-1, instance.p.canvas.shape[0]-1, pointData={"Density":edens[0],"UpDensity":edens[1],"DownDensity":edens[2],"SpinDensity":spindens})
         else:
             edens =instance.edens(lrgm_val)
-            np.save('filename'+'edens', edens)
+            np.save(filename+'edens', edens)
             writeVTK(filename, instance.p.canvas.shape[1]-1,instance.p.canvas.shape[0]-1 , pointData={"Density":edens[0]})
         del lrgm_val
         del edens
@@ -368,8 +372,8 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
     g.save()
     return transmissions
 
-def savestats(instance,filepath):
-    lines = ['Fermi energy: '+str(instance.p.Efermi)+'\n','Grid spacing: '+str(instance.p.a)+'\n','Hopping parameter t0:'+str(instance.p.t0)+'\n','Spin hopping parameter tSO:'+str(instance.p.tso)+'\n','Potential drop:'+str(instance.p.potential_drop)+'\n','Effective mass:'+str(instance.p.mass)+'\n','Energy range swept: '+str(instance.p.energy)+'\n','Calculated first mode energy: '+str(instance.p.El)+'\n']
+def savestats(instance,mode,sweep_type,filepath):
+    lines = ['Fermi energy: '+str(instance.p.energy/instance.p.Efermi)+'\n','Grid spacing: '+str(instance.p.a)+'\n','Hopping parameter t0:'+str(instance.p.t0)+'\n','Spin hopping parameter tSO:'+str(instance.p.tso)+'\n','Potential drop:'+str(instance.p.potential_drop)+'\n','Effective mass:'+str(instance.p.mass)+'\n','Energy range swept: '+str(instance.p.energy)+'\n','Calculated first mode energy: '+str(instance.p.El)+'\n','Graph mode: '+mode+'\n','Sweep type: '+sweep_type+'\n']
     with open(filepath+'summary.txt','w') as f:
         f.writelines(lines)
 def spinint(instance):
