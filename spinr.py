@@ -285,10 +285,10 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         creation_time = str(time.strftime('%b-%d-%Y-%H.%M'))
     import os, errno
     home = os.environ['HOME']
-    if len(instance.p.task_id) <1:
-        filepath = home+'/spinr/output/'+name+'-'+creation_time+'/'
+    if len(str(instance.p.task_id)) <1:
+        filepath = home+'/spinr/output/'+str(instance.p.job_id)+'-'+name+'-'+creation_time+'/'
     else:
-        filepath = home+'/spinr/output/'+name+'-'+creation_time+'/'+str(instance.p.task_id)+'/'
+        filepath = home+'/spinr/output/'+str(instance.p.job_id)+'-'+name+'-'+creation_time+'/'+str(instance.p.task_id)+'/'
     try:
         print 'trying to create dir', filepath
         os.makedirs(filepath)
@@ -308,7 +308,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
     instance.setmode(mode)
     print 'done setting mode'
     #shift = -140
-    charge_range = linspace(8,0,sweep_range)
+    charge_range = linspace(sweep_min,sweep_max,sweep_range)
     if sweep_type == 'energy':
         energy = linspace(sweep_min,sweep_max,sweep_range)
     else:
@@ -316,7 +316,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         qpc_range=linspace(sweep_min,sweep_max,sweep_range)
     instance.p.energy = energy
     savestats(instance,mode,sweep_type,filepath)
-    instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
+    # instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
     slope_range=linspace(0.24,0,sweep_range)
     for i in range(sweep_range):
         print '---------------------------------------------------------'
@@ -333,9 +333,13 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
             instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
         elif sweep_type == 'qpcrect':
             instance.p.rectangular_qpc(shift=qpc_range[i],scale=100, width=30)
+        elif sweep_type == 'qpctriangular':
+            instance.p.triangular_qpc(shift=qpc_range[i],width=50,radius=100,scale=100)
+        elif sweep_type == 'ring':
+            pass
+            #shift = 0 is closed, shift=200 is open
         #elif sweep_type == 'energy':
         #    instance.p.stepgrid(4,4)
-        #instance.p.rectangular_qpc(shift,width=50,scale=100)
         print "Starting to update Hamiltonian"
         instance.update_hamil_diag()
         print "Hamiltonian set up, calculating lrgm (crunch...crunch)", time.strftime('%X')
