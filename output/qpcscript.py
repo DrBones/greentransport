@@ -79,6 +79,7 @@ def plotspindens(path):
         pl.savefig(filepath+path+'spindens.pdf',transparent='true')
 # -------------------------------------
 def plottransmission(path):
+    from matplotlib.ticker import MultipleLocator
 # fig_width_pt = 448.13095/2  # Get this from LaTeX using \showthe\columnwidth
     fig_width_pt = 448.13095/2  # Get this from LaTeX using \showthe\columnwidth
 # fig_height_pt = 350  # Get this from LaTeX using \showthe\columnwidth
@@ -111,6 +112,8 @@ def plottransmission(path):
         pl.plot(trans)
         pl.xlabel('Shift [points]')
         pl.ylabel('Conductance [$e^2/h$]')
+        majorLocator = MultipleLocator(2)
+        ax.yaxis.set_major_locator(majorLocator)
         pl.grid()
         pl.savefig(filepath+path+'trans.pdf',transparent=True)
 

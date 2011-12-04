@@ -72,10 +72,10 @@ class Parameters(object):
         x,y = self.initialize_grid()
         self.potential_grid = aux.pointchargePot(x,y,charge,scale)
 
-    def linearsmooth_qpc(self,slope=1,scale=0,xi=1):
+    def linearsmooth_qpc(self,width=0, slope=1,scale=0,xi=1):
         import aux
         x,y = self.initialize_grid()
-        self.potential_grid = aux.linearsmoothPot(x,y,slope,scale,xi)
+        self.potential_grid = aux.linearsmoothPot(x,y,width,slope,scale,xi)
 
     def triangular_qpc(self,shift=0,width=1,radius=1,scale=0):
         import aux

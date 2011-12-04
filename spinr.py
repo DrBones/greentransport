@@ -317,7 +317,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
     instance.p.energy = energy
     savestats(instance,mode,sweep_type,filepath)
     # instance.p.potential_drop = [0.004*instance.p.t0/2,-0.004*instance.p.t0/2]
-    slope_range=linspace(0.24,0,sweep_range)
+    #slope_range=linspace(0.24,0,sweep_range)
     for i in range(sweep_range):
         print '---------------------------------------------------------'
         print 'Step Number: ',i
@@ -330,7 +330,7 @@ def sweep(instance,sweep_range,sweep_type,sweep_min,sweep_max,mode='spin_graph',
         elif sweep_type == 'qpcpoint':
             instance.p.pointcharge_qpc(charge=charge_range[i], scale = 1)
         elif sweep_type == 'qpcvariational':
-            instance.p.linearsmooth_qpc(slope_range[i],scale=0.56*instance.p.t0,xi=10)
+            instance.p.linearsmooth_qpc(width=qpc_range[i],slope=instance.p.slope,scale=0.56*instance.p.t0,xi=10)
         elif sweep_type == 'qpcrect':
             instance.p.rectangular_qpc(shift=qpc_range[i],scale=100, width=30)
         elif sweep_type == 'qpctriangular':
