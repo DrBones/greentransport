@@ -8,7 +8,8 @@ class Parameters(object):
         self.c = 299792458 #m/s
         self.m0 = 0.510e6/(self.c**2) #eV*s**2/m**2
         self.eps0 = 8.854e-12 # Vacuum permittivity C/V*m
-        self.epsr = 12.85
+        # self.epsr = 12.85 #(high frequency)
+        self.epsr = 15.15 #(static)
         self.kb = 8.6173324e-5 # ev /K
         self.a = 1e-9 # in meter
         self.alpha = 20e-12 # eV m

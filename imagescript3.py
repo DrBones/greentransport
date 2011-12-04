@@ -43,12 +43,12 @@ y3 = dens3[100,x]
 # y6 = dens1[100,x]
 y5 = dens2[100,x]
 y4 = (y2*y3.max()+y5)/(y2*y3.max()+y5).max()*y3.max()
-xshift=-0.13
+xshift=-0.14
 # Plot data
 # -------------------------------------
 pl.figure()
 pl.clf()
-pl.axes([0.15,0.2,0.95-0.15,0.95-0.2])
+pl.axes([0.16,0.2,0.95-0.15,0.95-0.2])
 pl.plot(x,y1,'g:',label=r'$\psi$')
 pl.plot(x,y2,'-b',label=r'$\psi^*\psi$')
 pl.xlabel(r'$y$ [nm]')
@@ -60,7 +60,7 @@ pl.savefig('images/analytical3.pdf',transparent='true')
 # -------------------------------------
 pl.figure()
 pl.clf()
-pl.axes([0.15,0.2,0.95-0.15,0.95-0.2])
+pl.axes([0.16,0.2,0.95-0.15,0.95-0.2])
 pl.plot(x,y4,'-b',label='$n3_{anal}$')
 pl.plot(x,y3,'k2',label='$n3_{sim}$',markersize=3)
 pl.plot(x,y5,'g2',label='$n2_{sim}$',markersize=3)
@@ -76,7 +76,7 @@ pl.savefig('images/overlay3.pdf',transparent='true')
 # -------------------------------------
 pl.figure()
 pl.clf()
-pl.axes([0.15,0.1,0.95-0.15,0.95-0.1])
+pl.axes([0.16,0.1,0.95-0.15,0.95-0.1])
 pl.imshow(dens3/1e17,aspect='auto')
 ax = pl.gca()
 ax.xaxis.set_label_coords(0.5, -0.05)
@@ -89,7 +89,7 @@ pl.savefig('images/dens3.pdf',transparent='true')
 pl.figure()
 pl.clf()
 error=(y4-y3)*100/(sum(y3)/len(x))
-pl.axes([0.15,0.2,0.95-0.15,0.95-0.2])
+pl.axes([0.16,0.2,0.95-0.15,0.95-0.2])
 pl.plot(x,error,'-r',label=r'Error')
 pl.xlabel(r'$y$ [nm]')
 pl.ylabel(r'relative error [\%]')
