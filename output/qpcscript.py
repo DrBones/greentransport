@@ -110,7 +110,7 @@ def plottransmission(path):
         trans = np.load(gtrans[0])
         ax = pl.axes([0.17,0.2,0.95-0.2,0.95-0.2])
         pl.plot(trans)
-        pl.xlabel('Shift [points]')
+        pl.xlabel('Width [nm]')
         pl.ylabel('Conductance [$e^2/h$]')
         majorLocator = MultipleLocator(2)
         ax.yaxis.set_major_locator(majorLocator)

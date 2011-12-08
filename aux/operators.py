@@ -10,11 +10,11 @@ def spindens(self,lrgm_out):
             Gup, Gdown =  Gup.reshape(self.canvas.shape), Gdown.reshape(self.canvas.shape)
         else:
             print "Please specify order of Nodes, i.e 'even' for allspinup-allspindown per sclice or odd for spinup-spindown-spinup-..."
-        Sz = self.p.hbar/(4*pi*1j*self.p.a**2)*(Gup-Gdown)
+        Sz = self.p.upar.hbar/(4*pi*1j*self.p.upar.a**2)*(Gup-Gdown)
     elif number_of_nodes < number_of_lattice_points:
             Sz= zeros(self.canvas.shape,dtype=complex128)
             print 'calculating spin density for sparse structure'
-            lrgm_out = self.p.hbar/(4*pi*1j*self.p.a**2)*lrgm_out
+            lrgm_out = self.p.hbar/(4*pi*1j*self.p.upar.a**2)*lrgm_out
             expanded_array_of_coords = repeat(self.tuple_canvas_coordinates,2,axis=0)
             for index,node_name in enumerate(self.nodelist):
                 if node_name % 2 == 0:
@@ -35,14 +35,15 @@ def edens(self,lrgm_out):
     number_of_nodes = len(self.tuple_canvas_coordinates)
     if number_of_nodes  == number_of_lattice_points:
         print 'Using stride bases reshape, Attention !!! Probably not what you want!'
+
         if self.p.multi ==1:
-                edensity = lrgm_out.reshape(asarray(self.canvas.shape)+[0,0])*2/(2*pi*self.p.a**2) #times 2 for spin
+                edensity = lrgm_out.reshape(asarray(self.canvas.shape)+[0,0])*2/(2*pi*self.p.upar.a**2) #times 2 for spin
         if self.p.multi ==2:
             if self.order == 'even':
                 Gup, Gdown = split(lrgm_out.reshape(self.canvas.shape[0],self.canvas.shape[1]*2),2,axis=1)
-                edensity = 1/(2*pi*self.p.a**2)*(Gup+Gdown)
+                edensity = 1/(2*pi*self.upar.p.a**2)*(Gup+Gdown)
             if self.order == 'odd':
-                edensity = 1/(2*pi*self.p.a**2)*sum(lrgm_out.reshape(-1,2), axis=1).reshape(self.canvas.shape)
+                edensity = 1/(2*pi*self.p.upar.a**2)*sum(lrgm_out.reshape(-1,2), axis=1).reshape(self.canvas.shape)
             else:
                 print "Please specify order of Nodes, i.e 'even' for allspinup-allspindown per sclice or odd for spinup-spindown-spinup-..."
     elif number_of_nodes < number_of_lattice_points:
@@ -51,12 +52,12 @@ def edens(self,lrgm_out):
         edensity_spin_down = zeros(self.canvas.shape,dtype=complex128)
         if self.p.multi ==1:
             print 'calculating electron density without SO'
-            lrgm_out = lrgm_out *2/(2*pi*self.p.a**2)
+            lrgm_out = lrgm_out *2/(2*pi*self.p.upar.a**2)
             for index,node_name in enumerate(self.nodelist):
                 edensity_spin_up[self.tuple_canvas_coordinates[node_name]]= lrgm_out[index]
         if self.p.multi ==2:
             print 'calculating electron density with SO'
-            lrgm_out = lrgm_out*1/(2*pi*self.p.a**2)
+            lrgm_out = lrgm_out*1/(2*pi*self.p.upar.a**2)
             expanded_array_of_coords = repeat(self.tuple_canvas_coordinates,2,axis=0)
             for index,node_name in enumerate(self.nodelist):
                 if node_name % 2 ==0: 

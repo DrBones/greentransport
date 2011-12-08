@@ -39,7 +39,7 @@ def graph_from_tuple_coords(tuple_coordinates,row_stride=None):
 
 
 def digraph_from_tuple_coords(tuple_coordinates,row_stride=None):
-    Balpha = 2*pi*1j*p.BField * p.a**2 /(p.hbar) # without the leading q because of hbar in eV
+    Balpha = 2*pi*1j*p.upar.BField * p.upar.a**2 /(p.hbar) # without the leading q because of hbar in eV
     if len(tuple_coordinates) < len(p.tuple_canvas_coordinates):
         Balpha = 0
 # TODO possible speed up is to use start, stop parameters of tuple.index() to reduce search

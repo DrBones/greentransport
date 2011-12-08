@@ -23,8 +23,8 @@ def init_with(canvas=None):
         model = Model(world)
         print 'Size of the world: ', model.p.canvas.shape
         print 'Fermi energy set: ',model.p.Efermi
-        print 'Bias appied: ', model.p.potential_drop
-        print 'Magnetic field on init: ', model.p.BField
+        print 'Bias appied: ', model.p.upar.potential_drop
+        print 'Magnetic field on init: ', model.p.upar.BField
         return model
     else:
         print "Please specify atlas as: atlas='filename.bmp'"

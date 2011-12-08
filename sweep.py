@@ -9,8 +9,8 @@ import spinr
 print 'importing time'
 import time
 home =os.environ['HOME']
-# sm = spinr.init_with(home+'/spinr/canvas/wire400x200.bmp')
-sm = spinr.init_with(home+'/spinr/canvas/200x200ring_neg90degrees.bmp')
+sm = spinr.init_with(home+'/spinr/canvas/wire400x200.bmp')
+# sm = spinr.init_with(home+'/spinr/canvas/200x200ring_neg90degrees.bmp')
 # sm = spinr.init_with(home+'/spinr/canvas/wire200x100.bmp')
 # sm = spinr.init_with(home+'/spinr/canvas/wire300x80.bmp')
 if 'SGE_TASK_ID' in os.environ:
@@ -38,6 +38,7 @@ print 'This is task: ',task_id,'script staring at: ',time.strftime('%X'),'in',ho
 slope_range=n.linspace(0,0.4,50)
 # sm = spinr.init_with(home+'/spinr/canvas/wire200x100.bmp')
 # sm.p.Efermi = parameter_space[task_id]*sm.p.Efermi
+sm.set_current('Up')
 sm.p.energy=0.16*sm.p.Efermi
 print 'Fermi Energy is: ',sm.p.Efermi,'eV (i believe)'
 # transmission = spinr.qpc_opening_sweep(sm)
@@ -49,7 +50,7 @@ print 'Fermi Energy is: ',sm.p.Efermi,'eV (i believe)'
 # transmission = spinr.sweep(sm,200,'qpcrect',0,200,'spin_graph')
 #transmission = spinr.sweep(sm,200,'qpctriangular',0,200,'graph')
 # n.save(home+'/spinr/output/tstub-'+str(task_id)+'/transmission_tstub',transmission)
-transmission = spinr.sweep(sm,200,'energy',0,sm.p.Efermi,mode='spin_graph')
+transmission = spinr.sweep(sm,20,'energy',0,sm.p.Efermi,mode='spin_graph')
 # transmission = spinr.sweep(sm,100,'qpcvariational',0,200,mode='graph')
 # transmission = spinr.sweep(sm,200,'qpcpoint',40,0,mode='graph')
 # transmission = spinr.sweep(sm,200,'qpccircular',72,-30,mode='spin_graph')

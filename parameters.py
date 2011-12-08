@@ -1,8 +1,12 @@
 class Parameters(object):
-    """ module to import which holds all the parameters for the 
-    simulation, hopefully only references but i will see """
+    """ module to import which holds all the parameters for the
+    simulation, hopefully only references but i will see
+    """
     def __init__(self):
+        from userparams import upar
         from numpy import pi,cos
+        self.upar = upar
+        #natural constants------------------------------------------------------------
         self.q = 1.6e-19 #Coulomb
         self.hbar = 6.58211928e-16 #eV * s
         self.c = 299792458 #m/s
@@ -10,40 +14,40 @@ class Parameters(object):
         self.eps0 = 8.854e-12 # Vacuum permittivity C/V*m
         self.epsr = 12.85
         self.kb = 8.6173324e-5 # ev /K
-        self.a = 1e-9 # in meter
-        self.alpha = 20e-12 # eV m
+        # numeric constants------------------------------------------------------------
+        self.zplus = 1j*1e-12
+        # user defined parameters-------------------------------------------------------
+        # Resulants --------------------------------------------------------------------
         #effective mass in eV real in GaAs 0.063
-        self.mass = 0.026*self.m0
+        self.mass = self.upar.effmassfactor*self.m0
         # self.mass = 0.036*self.m0
-        self.t0 = (self.hbar**2)/(2*self.mass*(self.a**2))
-        self.tso = (self.alpha*1.0)/(2 * self.a)
+        self.t0 = (self.hbar**2)/(2*self.mass*(self.upar.a**2))
+        self.Efermi = 1.1*self.t0
+        #self.Efermi = self.upar.band_bottom + 2*self.t0*(1-cos(2*pi/self.upar.lambdaf))
+        self.tso = (self.upar.alpha*1.0)/(2 * self.upar.a)
         #tso = 0.01*t0
         #tso = 0
         #Temperature * k_boltzmann in eV, 0.0025ev~30K
-        self.Temp = 2 #in Kelvin
-        self.kT = self.kb * self.Temp
+        self.kT = self.kb * self.upar.Temp
+        self.mu = self.Efermi
         # self.lambdaf = 35 # i believe in nanometer, 35 more realistic?
-        self.lambdaf = 10 # i believe in nanometer, 35 more realistic?
-        self.BField = 0 # in Tesla, from 0-~10
-        self.zplus = 1j*1e-12
-        self.band_bottom = 0
         #band_bottom = -4*t0
-        self.Efermi = self.band_bottom + 2*self.t0*(1-cos(2*pi/self.lambdaf))
         #Efermi = -3.8 * t0 # close to the bottom of the band at -4.0 t0, what bottom and band in what material ?
-        #self.Efermi = 0.15*self.t0
         #Potential Drop over legth of device
-        self.potential_drop = [0,0]
         #electro-chemical potential in eV
-        self.mu_l = self.Efermi - (self.potential_drop[1] - self.potential_drop[0])/2
-        self.mu_r = self.Efermi + (self.potential_drop[1] - self.potential_drop[0])/2
+        self.mu_l = self.Efermi - (self.upar.potential_drop[1] - self.upar.potential_drop[0])/2
+        self.mu_r = self.Efermi + (self.upar.potential_drop[1] - self.upar.potential_drop[0])/2
         #potential_drop = [0.004*t0/2, -0.004* t0/2]# in eV
         #Egrid = linspace(Efermi-0.4*t0,Efermi +0.4*t0,100)+zplus # in eV ?
-        self.mu = self.Efermi
         #dE = Egrid[1].real-Egrid[0].real
-        self.raw_coords = None
-        self.tuple_canvas_coordinates = None
-        self.canvas = None
-        self.contacts = None
+        if 'raw_coords' not in dir(self):
+            self.raw_coords = None
+            self.tuple_canvas_coordinates = None
+            self.canvas = None
+            self.contacts = None
+
+    def update(self):
+        self.__init__()
 
     def initialize_grid(self):
         from scipy import ogrid

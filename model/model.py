@@ -162,6 +162,7 @@ class Model:
         """ Simple Fermifunction """
         from scipy import exp
         fermifnc = 1/(exp((E.real-mu)/self.p.kT)+1)
+        print fermifnc
         return fermifnc
 
     def build_A(self, E):
@@ -235,12 +236,12 @@ class Model:
     def adaptiveenergy(self):
         pass
 
-    def dorrgm(self,E_rel):
+    def dorrgm(self):
         from aux import SparseBlocks
         from greensolver import rrgm
         #from io_spinr import writeVTK
         #energy = self.Efermi
-        A, sigma_in_l, sigma_in_r = self.spinA(E_rel)
+        A, sigma_in_l, sigma_in_r = self.spinA(self.p.Efermi)
         Ablock = SparseBlocks(A,self.block_sizes )
         diag, grl, Gr= rrgm(Ablock)
         self.grl=grl
@@ -273,12 +274,12 @@ class Model:
         
 
 
-    def dolrgm(self,energy):
+    def dolrgm(self):
         #import pudb; pudb.set_trace()
         from aux import SparseBlocks
         from greensolver import lrgm
         #from io_spinr import writeVTK
-        A, sigma_in_l, sigma_in_r = self.spinA(energy)
+        A, sigma_in_l, sigma_in_r = self.spinA(self.p.Efermi)
         Ablock = SparseBlocks(A,self.block_sizes)
         lrgm_value= lrgm(Ablock, sigma_in_l, sigma_in_r)
         self.grl = lrgm_value[1]
