@@ -51,7 +51,7 @@ class Contact(object):
 
     def generate_sigma(self):
         import networkx as nx
-        from scipy.linalg import inv,schur
+        from scipy.linalg import inv,schur,eig
         from scipy.sparse import lil_matrix
         from numpy import asarray_chkfinite,isfinite,inf
         from aux import SparseBlocks, eigenvector_from_eigenvalue, all_elements_are_unique
@@ -103,6 +103,21 @@ class Contact(object):
         if not all_elements_are_unique(eigenvalues):
             print "--------------WARNING!!!!!---------------"
             print "One or more eigenvalues are identical, please rotate eigenvectors, I don't know how to do that"
+        #v,d = eig(CompanionMatrix_array)
+        #ndx = argsort(v)
+        #S=d[:,ndx]
+        #v=v[ndx]
+        #Sleft,Sright = split(S,2,axis=1)
+        #S4,S3 = split(Sright,2,axis=0)
+        #S2,S1 = split(Sleft,2,axis=0)
+        #S2 =S[:block*self.p.multi,:block*self.p.multi]
+        #S1= S[block*self.p.multi:,:block*self.p.multi]
+        #self.S2 = S2
+        #self.S1 = S1
+        #self.S4 = S4
+        #self.S3 = S3
+        #print 'S1 shape: ',S1.shape
+        #print 'S2 shape: ',S2.shape
         # sort eigenvalues and Z according to acending abs(eigenvalue), TODO: do better sorting, now it
         # depends on luck. sort using the calulated eigenvectors above
         # sorting_indices = abs(eigenvalues).argsort()
@@ -111,6 +126,8 @@ class Contact(object):
         Zleft,Zright = split(Z,2,axis=1)
         #S4,S3 = split(Sright,2,axis=0)
         Z11,Z21 = split(Zleft,2,axis=0)
+        self.Z11 = Z11
+        self.Z21 = Z21
         if self.index == 0:
             SigmaRet = dot(H01,dot(Z21,inv(Z11)))
         else:

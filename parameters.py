@@ -23,8 +23,8 @@ class Parameters(object):
         self.mass = self.upar.effmassfactor*self.m0
         # self.mass = 0.036*self.m0
         self.t0 = (self.hbar**2)/(2*self.mass*(self.upar.a**2))
-        self.Efermi = 1.1*self.t0
-        #self.Efermi = self.upar.band_bottom + 2*self.t0*(1-cos(2*pi/self.upar.lambdaf))
+        #self.Efermi = 1.1*self.t0
+        self.Efermi = self.upar.band_bottom + 2*self.t0*(1-cos(2*pi/self.upar.lambdaf))
         self.tso = (self.upar.alpha*1.0)/(2 * self.upar.a)
         #tso = 0.01*t0
         #tso = 0

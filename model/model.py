@@ -236,12 +236,12 @@ class Model:
     def adaptiveenergy(self):
         pass
 
-    def dorrgm(self):
+    def dorrgm(self,energy):
         from aux import SparseBlocks
         from greensolver import rrgm
         #from io_spinr import writeVTK
         #energy = self.Efermi
-        A, sigma_in_l, sigma_in_r = self.spinA(self.p.Efermi)
+        A, sigma_in_l, sigma_in_r = self.spinA(energy)
         Ablock = SparseBlocks(A,self.block_sizes )
         diag, grl, Gr= rrgm(Ablock)
         self.grl=grl
@@ -274,12 +274,12 @@ class Model:
         
 
 
-    def dolrgm(self):
+    def dolrgm(self,energy):
         #import pudb; pudb.set_trace()
         from aux import SparseBlocks
         from greensolver import lrgm
         #from io_spinr import writeVTK
-        A, sigma_in_l, sigma_in_r = self.spinA(self.p.Efermi)
+        A, sigma_in_l, sigma_in_r = self.spinA(energy)
         Ablock = SparseBlocks(A,self.block_sizes)
         lrgm_value= lrgm(Ablock, sigma_in_l, sigma_in_r)
         self.grl = lrgm_value[1]
