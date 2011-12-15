@@ -1,6 +1,8 @@
 import spinr
 import numpy as np
 import matplotlib.pylab as pl
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 x = np.r_[1:101]
 
 def psi(x,n):
@@ -67,12 +69,16 @@ pl.savefig('images/overlay1.pdf',transparent='true')
 # -------------------------------------
 pl.figure()
 pl.clf()
-pl.axes([0.16,0.1,0.95-0.15,0.95-0.1])
-pl.imshow(dens1/1e17,aspect='auto')
-ax = pl.gca()
+ax = pl.axes([0.16,0.1,0.95-0.15,0.95-0.1])
+im = ax.imshow(dens1/1e17,aspect='auto')
+#ax = pl.gca()
 ax.xaxis.set_label_coords(0.5, -0.05)
 pl.xlabel('$y$ [nm]')
 pl.ylabel('$x$ [nm]')
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("op", size="5%", pad=0.05)
+cbar = pl.colorbar(im, cax=cax,orientation='horizontal')
+cbar.ax.xaxis.set_ticks_position('top')
 pl.text(0.85, -0.55, r'$n\times 10^{17}$', fontsize=10, transform = pl.gca().transAxes)
 pl.colorbar(orientation='horizontal')
 pl.savefig('images/dens1.pdf',transparent='true')
